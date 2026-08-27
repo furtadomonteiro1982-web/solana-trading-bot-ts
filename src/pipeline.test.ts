@@ -51,14 +51,14 @@ let db: Database.Database;
 let positionRepo: PositionRepository;
 let decisionLog: DecisionLogRepository;
 let executor: Executor;
-let executeMock: ReturnType<typeof vi.fn>;
+let executeMock: ReturnType<typeof vi.fn<(order: Order) => Promise<Fill>>>;
 let client: GeckoTerminalClient;
 
 beforeEach(() => {
   db = createDb(':memory:');
   positionRepo = new PositionRepository(db);
   decisionLog = new DecisionLogRepository(db);
-  executeMock = vi.fn().mockImplementation(
+  executeMock = vi.fn<(order: Order) => Promise<Fill>>().mockImplementation(
     async (order: Order): Promise<Fill> => ({
       poolAddress: order.poolAddress,
       side: order.side,

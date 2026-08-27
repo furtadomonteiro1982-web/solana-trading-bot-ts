@@ -8,12 +8,12 @@ import type { Executor, Fill, Order } from './types.js';
 let db: Database.Database;
 let repo: PositionRepository;
 let executor: Executor;
-let executeMock: ReturnType<typeof vi.fn>;
+let executeMock: ReturnType<typeof vi.fn<(order: Order) => Promise<Fill>>>;
 
 beforeEach(() => {
   db = createDb(':memory:');
   repo = new PositionRepository(db);
-  executeMock = vi.fn().mockImplementation(
+  executeMock = vi.fn<(order: Order) => Promise<Fill>>().mockImplementation(
     async (order: Order): Promise<Fill> => ({
       poolAddress: order.poolAddress,
       side: order.side,
