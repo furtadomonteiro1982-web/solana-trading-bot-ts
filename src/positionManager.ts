@@ -1,0 +1,50 @@
+import type { Executor } from './types.js';
+import type { PositionRepository } from './store/positionRepository.js';
+
+export type PriceLookup = (poolAddress: string) => Promise<number | null>;
+
+export async function reviewOpenPositions(
+  positionRepo: PositionRepository,
+  priceLookup: PriceLookup,
+  executor: Executor,
+  now: Date = new Date()
+): Promise<number> {
+  const openPositions = positionRepo.getOpenPositions();
+  let closedCount = 0;
+
+  for (const position of openPositions) {
+    const currentPrice = await priceLookup(position.poolAddress);
+    if (currentPrice === null) continue;
+
+    if (currentPrice > position.highestPriceUsd) {
+      positionRepo.updateHighestPrice(position.id, currentPrice);
+    }
+    const highestPrice = Math.max(currentPrice, position.highestPriceUsd);
+
+    let closeReason: 'TAKE_PROFIT' | 'STOP_LOSS' | 'TRAILING_STOP' | null = null;
+    if (currentPrice >= position.takeProfitPrice) {
+      closeReason = 'TAKE_PROFIT';
+    } else if (currentPrice <= position.stopLossPrice) {
+      closeReason = 'STOP_LOSS';
+    } else if (
+      highestPrice > position.entryPriceUsd &&
+      currentPrice <= highestPrice * (1 - position.trailingStopPct / 100)
+    ) {
+      closeReason = 'TRAILING_STOP';
+    }
+
+    if (closeReason) {
+      await executor.execute({
+        poolAddress: position.poolAddress,
+        baseTokenSymbol: position.baseTokenSymbol,
+        side: 'SELL',
+        sizeUsd: position.sizeUsd,
+        priceUsd: currentPrice,
+      });
+      positionRepo.closePosition(position.id, currentPrice, closeReason, now);
+      closedCount += 1;
+    }
+  }
+
+  return closedCount;
+}
