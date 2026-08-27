@@ -1,0 +1,28 @@
+{
+  "scanIntervalSeconds": 60,
+  "network": "solana",
+  "filters": {
+    "minLiquidityUsd": 20000,
+    "minPoolAgeMinutes": 60
+  },
+  "indicators": {
+    "rsiPeriod": 14,
+    "rsiOversold": 35,
+    "smaPeriod": 20,
+    "momentumLookbackCandles": 6,
+    "momentumMinPct": 3
+  },
+  "risk": {
+    "simulatedCapitalUsd": 100,
+    "maxPositionPct": 10,
+    "maxOpenPositions": 3,
+    "stopLossPct": 20,
+    "takeProfitPct": 50,
+    "trailingStopPct": 15
+  },
+  "geckoTerminal": {
+    "baseUrl": "https://api.geckoterminal.com/api/v2",
+    "timeframe": "hour",
+    "ohlcvLimit": 100
+  }
+}

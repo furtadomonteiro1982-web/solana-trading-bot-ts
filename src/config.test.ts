@@ -1,0 +1,53 @@
+import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { loadConfig } from './config.js';
+
+function writeTempConfig(content: unknown): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bot-config-'));
+  const filePath = path.join(dir, 'config.json');
+  fs.writeFileSync(filePath, JSON.stringify(content));
+  return filePath;
+}
+
+const validConfig = {
+  scanIntervalSeconds: 60,
+  network: 'solana',
+  filters: { minLiquidityUsd: 20000, minPoolAgeMinutes: 60 },
+  indicators: {
+    rsiPeriod: 14,
+    rsiOversold: 35,
+    smaPeriod: 20,
+    momentumLookbackCandles: 6,
+    momentumMinPct: 3,
+  },
+  risk: {
+    simulatedCapitalUsd: 100,
+    maxPositionPct: 10,
+    maxOpenPositions: 3,
+    stopLossPct: 20,
+    takeProfitPct: 50,
+    trailingStopPct: 15,
+  },
+  geckoTerminal: {
+    baseUrl: 'https://api.geckoterminal.com/api/v2',
+    timeframe: 'hour',
+    ohlcvLimit: 100,
+  },
+};
+
+describe('loadConfig', () => {
+  it('loads a valid config file', () => {
+    const filePath = writeTempConfig(validConfig);
+    const config = loadConfig(filePath);
+    expect(config.scanIntervalSeconds).toBe(60);
+    expect(config.risk.simulatedCapitalUsd).toBe(100);
+  });
+
+  it('throws a clear error when a required field is missing', () => {
+    const { risk, ...withoutRisk } = validConfig;
+    const filePath = writeTempConfig(withoutRisk);
+    expect(() => loadConfig(filePath)).toThrow(/Config invalide/);
+  });
+});
