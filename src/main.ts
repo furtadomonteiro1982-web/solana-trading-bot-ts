@@ -107,7 +107,11 @@ async function main() {
       }
     } catch (error) {
       // Ne devrait plus se produire (runCycle capture déjà ses propres erreurs), gardé par sécurité.
+      // Contrairement aux erreurs ponctuelles sur un pool isolé (déjà couvertes par l'alerte à 3
+      // cycles consécutifs ci-dessus), un cycle entier qui plante sans produire de résumé est
+      // notifié immédiatement — c'est un raté complet, pas un simple hoquet.
       console.error('Erreur pendant le cycle :', error);
+      await notifier.notify(`❌ Un cycle complet a échoué : ${String(error)}`);
     }
     const elapsedMs = Date.now() - cycleStart;
     const remainingMs = config.scanIntervalSeconds * 1000 - elapsedMs;
