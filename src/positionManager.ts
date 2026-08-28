@@ -34,14 +34,16 @@ export async function reviewOpenPositions(
     }
 
     if (closeReason) {
-      await executor.execute({
+      // Le prix de clôture enregistré (et donc le PnL) vient du Fill réellement exécuté, pas du
+      // prix demandé : identiques avec le PaperExecutor, divergents avec un exécuteur réel.
+      const fill = await executor.execute({
         poolAddress: position.poolAddress,
         baseTokenSymbol: position.baseTokenSymbol,
         side: 'SELL',
         sizeUsd: position.sizeUsd,
         priceUsd: currentPrice,
       });
-      positionRepo.closePosition(position.id, currentPrice, closeReason, now);
+      positionRepo.closePosition(position.id, fill.filledPriceUsd, closeReason, now);
       closedCount += 1;
     }
   }

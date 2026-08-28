@@ -103,4 +103,103 @@ describe('runCycle', () => {
     expect(summary.buySignals).toBe(0);
     expect(client.fetchOhlcv).not.toHaveBeenCalled();
   });
+
+  it('records the executor fill price as the entry price, not the requested order price', async () => {
+    // Un exécuteur réel (slippage) remplit à un prix différent de celui demandé.
+    executeMock.mockImplementation(async (order: Order): Promise<Fill> => ({
+      poolAddress: order.poolAddress,
+      side: order.side,
+      sizeUsd: order.sizeUsd,
+      filledPriceUsd: 0.95, // != order.priceUsd (0.9)
+      filledAt: new Date(),
+    }));
+
+    await runCycle({ client, positionRepo, decisionLog, executor, config });
+
+    const [position] = positionRepo.getOpenPositions();
+    expect(position.entryPriceUsd).toBe(0.95);
+    expect(executeMock).toHaveBeenCalledWith(expect.objectContaining({ priceUsd: 0.9 }));
+  });
+
+  it('does not open a second position on a pool that already has one open', async () => {
+    // Premier cycle : la position est ouverte.
+    await runCycle({ client, positionRepo, decisionLog, executor, config });
+    expect(positionRepo.getOpenPositions()).toHaveLength(1);
+    const buyCallsAfterFirstCycle = executeMock.mock.calls.filter((c) => c[0].side === 'BUY').length;
+    expect(buyCallsAfterFirstCycle).toBe(1);
+
+    // Deuxième cycle : le même signal BUY se reproduit sur le même pool.
+    const summary = await runCycle({ client, positionRepo, decisionLog, executor, config });
+
+    expect(summary.buySignals).toBe(1);
+    expect(summary.positionsOpened).toBe(0);
+    expect(positionRepo.getOpenPositions()).toHaveLength(1);
+    expect(executeMock.mock.calls.filter((c) => c[0].side === 'BUY')).toHaveLength(1);
+    expect(
+      decisionLog.getRecent(20).some((entry) => /Position déjà ouverte/.test(entry.reason))
+    ).toBe(true);
+  });
+
+  it('keeps processing other pools and still reviews open positions when one pool throws', async () => {
+    const pool2: Pool = { ...pool, poolAddress: 'POOL2', baseTokenSymbol: 'BAR' };
+    client.fetchTrendingPools = vi.fn().mockResolvedValue([pool, pool2]);
+    client.fetchOhlcv = vi.fn().mockImplementation(async (_network, poolAddress) => {
+      if (poolAddress === 'POOL1') throw new Error('API GeckoTerminal indisponible');
+      return buyCandles;
+    });
+    // Une position déjà ouverte sur un troisième pool doit rester surveillée malgré l'erreur :
+    // le prix (1.6) dépasse le take-profit (1.5), elle doit donc être clôturée dans ce cycle.
+    positionRepo.openPosition({
+      poolAddress: 'POOL3',
+      baseTokenSymbol: 'BAZ',
+      entryPriceUsd: 1,
+      sizeUsd: 10,
+      stopLossPrice: 0.8,
+      takeProfitPrice: 1.5,
+      trailingStopPct: 15,
+      openedAt: new Date(),
+    });
+    client.fetchPoolPrice = vi.fn().mockResolvedValue(1.6);
+
+    const summary = await runCycle({ client, positionRepo, decisionLog, executor, config });
+
+    // Le second pool est traité malgré l'échec du premier.
+    expect(summary.positionsOpened).toBe(1);
+    expect(executeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ poolAddress: 'POOL2', side: 'BUY' })
+    );
+    // La revue des positions ouvertes a bien eu lieu : POOL3 (take-profit 1.5) est clôturée,
+    // tout comme POOL2 ouverte dans ce même cycle (take-profit 0.99), le prix relevé étant 1.6.
+    expect(client.fetchPoolPrice).toHaveBeenCalled();
+    expect(summary.positionsClosed).toBe(2);
+    expect(positionRepo.getOpenPositions()).toHaveLength(0);
+    expect(executeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ poolAddress: 'POOL3', side: 'SELL' })
+    );
+    // L'erreur est tracée dans le journal des décisions.
+    const errorEntry = decisionLog.getRecent(20).find((entry) => entry.stage === 'ERROR');
+    expect(errorEntry?.poolAddress).toBe('POOL1');
+    expect(errorEntry?.reason).toMatch(/API GeckoTerminal indisponible/);
+  });
+
+  it('still reviews open positions when the scan itself throws', async () => {
+    client.fetchTrendingPools = vi.fn().mockRejectedValue(new Error('scan cassé'));
+    positionRepo.openPosition({
+      poolAddress: 'POOL3',
+      baseTokenSymbol: 'BAZ',
+      entryPriceUsd: 1,
+      sizeUsd: 10,
+      stopLossPrice: 0.8,
+      takeProfitPrice: 1.5,
+      trailingStopPct: 15,
+      openedAt: new Date(),
+    });
+    client.fetchPoolPrice = vi.fn().mockResolvedValue(1.6);
+
+    const summary = await runCycle({ client, positionRepo, decisionLog, executor, config });
+
+    expect(summary.poolsScanned).toBe(0);
+    expect(summary.positionsClosed).toBe(1);
+    expect(decisionLog.getRecent(20).some((entry) => entry.stage === 'ERROR')).toBe(true);
+  });
 });

@@ -3,7 +3,7 @@ import type Database from 'better-sqlite3';
 export interface DecisionLogEntry {
   timestamp: Date;
   poolAddress: string;
-  stage: 'FILTER' | 'SIGNAL' | 'RISK';
+  stage: 'FILTER' | 'SIGNAL' | 'RISK' | 'ERROR';
   decision: string;
   reason: string;
 }
