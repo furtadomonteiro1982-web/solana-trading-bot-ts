@@ -17,6 +17,9 @@ import { runCycle } from './pipeline.js';
 const CONSECUTIVE_ERROR_CYCLES_BEFORE_ALERT = 3;
 
 let stopRequested = false;
+// Déclaré au niveau module (pas dans main()) pour que le handler d'erreur fatale tout en bas
+// puisse aussi notifier un crash inattendu, pas seulement l'arrêt propre en fin de main().
+let notifier: Notifier = new NullNotifier();
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -58,7 +61,7 @@ async function main() {
   const decisionLog = new DecisionLogRepository(db);
   const firstSeenRepo = new FirstSeenRepository(db);
   const executor = new PaperExecutor();
-  const notifier = createNotifier();
+  notifier = createNotifier();
 
   process.on('SIGINT', () => {
     console.log('\nArrêt demandé, fin du cycle en cours...');
@@ -68,6 +71,7 @@ async function main() {
   console.log(
     `Bot démarré (paper trading). Intervalle : ${config.scanIntervalSeconds}s. Ctrl+C pour arrêter proprement.`
   );
+  await notifier.notify(`🤖 Bot démarré (paper trading). Intervalle : ${config.scanIntervalSeconds}s.`);
 
   let consecutiveErrorCycles = 0;
 
@@ -114,9 +118,13 @@ async function main() {
 
   db.close();
   console.log('Bot arrêté proprement.');
+  await notifier.notify('🛑 Bot arrêté proprement.');
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error('Erreur fatale :', error);
+  // Meilleur effort : si le crash survient avant que le notifier ne soit configuré (ex. config
+  // invalide), notifier reste le NullNotifier par défaut et cet appel ne fait rien.
+  await notifier.notify(`💥 Le bot s'est arrêté sur une erreur fatale : ${String(error)}`);
   process.exit(1);
 });
