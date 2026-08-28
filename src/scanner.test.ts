@@ -25,6 +25,7 @@ describe('scanPools', () => {
       fetchTrendingPools: vi.fn().mockResolvedValue([makePool('A'), makePool('B')]),
       fetchOhlcv: vi.fn(),
       fetchPoolPrice: vi.fn(),
+      fetchPool: vi.fn(),
     };
 
     const pools = await scanPools(client, config);
@@ -38,6 +39,7 @@ describe('scanPools', () => {
       fetchTrendingPools: vi.fn().mockResolvedValue([makePool('A'), makePool('A')]),
       fetchOhlcv: vi.fn(),
       fetchPoolPrice: vi.fn(),
+      fetchPool: vi.fn(),
     };
 
     const pools = await scanPools(client, config);

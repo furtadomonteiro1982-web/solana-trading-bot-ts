@@ -73,6 +73,7 @@ beforeEach(() => {
     fetchOhlcv: vi.fn().mockResolvedValue(buyCandles),
     // Price stays between stop-loss (0.45) and take-profit (0.99): position stays open.
     fetchPoolPrice: vi.fn().mockResolvedValue(0.5),
+    fetchPool: vi.fn().mockResolvedValue(pool),
   };
 });
 

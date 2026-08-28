@@ -43,6 +43,12 @@ const poolResponse = {
   data: { attributes: { base_token_price_usd: '0.42' } },
 };
 
+// Même forme que trending_pools, mais `data` est un objet unique et non un tableau.
+const singlePoolResponse = {
+  data: trendingPoolsResponse.data[0],
+  included: trendingPoolsResponse.included,
+};
+
 function mockFetchOnce(response: unknown, ok = true) {
   return vi.fn().mockResolvedValue({
     ok,
@@ -103,6 +109,33 @@ describe('GeckoTerminalHttpClient', () => {
     const price = await client.fetchPoolPrice('solana', 'MISSING');
 
     expect(price).toBeNull();
+  });
+
+  it('fetchPool maps the single-pool response into a Pool object', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce(singlePoolResponse));
+    const client = createGeckoTerminalClient('https://api.geckoterminal.com/api/v2');
+
+    const pool = await client.fetchPool('solana', 'POOL1');
+
+    expect(pool).toEqual({
+      poolAddress: 'POOL1',
+      baseTokenSymbol: 'FOO',
+      baseTokenAddress: 'TOKEN1',
+      priceUsd: 0.5,
+      liquidityUsd: 25000,
+      volume24hUsd: 10000,
+      priceChange24hPct: 5.5,
+      poolCreatedAt: new Date('2026-08-01T00:00:00.000Z'),
+    });
+  });
+
+  it('fetchPool returns null instead of throwing for an unknown pool address', async () => {
+    vi.stubGlobal('fetch', mockFetchOnce({}, false));
+    const client = createGeckoTerminalClient('https://api.geckoterminal.com/api/v2');
+
+    const pool = await client.fetchPool('solana', 'INCONNU');
+
+    expect(pool).toBeNull();
   });
 
   it('fetchTrendingPools retries on failure and eventually throws after exhausting retries', async () => {

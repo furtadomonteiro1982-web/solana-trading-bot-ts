@@ -9,6 +9,8 @@ export interface GeckoTerminalClient {
     limit: number
   ): Promise<Candle[]>;
   fetchPoolPrice(network: string, poolAddress: string): Promise<number | null>;
+  /** Récupère n'importe quel pool par son adresse (pas seulement les pools trending). */
+  fetchPool(network: string, poolAddress: string): Promise<Pool | null>;
 }
 
 interface RawTokenIncluded {
@@ -37,24 +39,8 @@ export class GeckoTerminalHttpClient implements GeckoTerminalClient {
   async fetchTrendingPools(network: string): Promise<Pool[]> {
     const url = `${this.baseUrl}/networks/${network}/trending_pools?include=base_token`;
     const json = await fetchJsonWithRetry(url);
-    const tokensById = new Map<string, RawTokenIncluded>();
-    for (const item of json.included ?? []) {
-      if (item.type === 'token') tokensById.set(item.id, item);
-    }
-    return (json.data as RawPoolData[]).map((raw) => {
-      const baseTokenId = raw.relationships.base_token.data.id;
-      const baseToken = tokensById.get(baseTokenId);
-      return {
-        poolAddress: raw.attributes.address,
-        baseTokenSymbol: baseToken?.attributes.symbol ?? 'UNKNOWN',
-        baseTokenAddress: baseToken?.attributes.address ?? '',
-        priceUsd: parseFloat(raw.attributes.base_token_price_usd),
-        liquidityUsd: parseFloat(raw.attributes.reserve_in_usd),
-        volume24hUsd: parseFloat(raw.attributes.volume_usd.h24),
-        priceChange24hPct: parseFloat(raw.attributes.price_change_percentage.h24),
-        poolCreatedAt: new Date(raw.attributes.pool_created_at),
-      };
-    });
+    const tokensById = indexTokens(json.included);
+    return (json.data as RawPoolData[]).map((raw) => mapPool(raw, tokensById));
   }
 
   async fetchOhlcv(
@@ -83,10 +69,52 @@ export class GeckoTerminalHttpClient implements GeckoTerminalClient {
       const url = `${this.baseUrl}/networks/${network}/pools/${poolAddress}`;
       const json = await fetchJsonWithRetry(url);
       return parseFloat(json.data.attributes.base_token_price_usd);
-    } catch {
+    } catch (error) {
+      // On renvoie null (le gestionnaire de positions ignorera cette position pour ce cycle)
+      // mais on trace l'échec : sans cela, un endpoint durablement en panne rendrait une position
+      // silencieusement invisible aux vérifications stop-loss / take-profit.
+      console.warn(
+        `Avertissement : impossible de récupérer le prix du pool ${poolAddress} : ${String(error)}`
+      );
       return null;
     }
   }
+
+  async fetchPool(network: string, poolAddress: string): Promise<Pool | null> {
+    try {
+      const url = `${this.baseUrl}/networks/${network}/pools/${poolAddress}?include=base_token`;
+      const json = await fetchJsonWithRetry(url);
+      // Même forme que trending_pools, sauf que `data` est un objet unique et non un tableau.
+      return mapPool(json.data as RawPoolData, indexTokens(json.included));
+    } catch (error) {
+      console.warn(
+        `Avertissement : impossible de récupérer le pool ${poolAddress} : ${String(error)}`
+      );
+      return null;
+    }
+  }
+}
+
+function indexTokens(included: RawTokenIncluded[] | undefined): Map<string, RawTokenIncluded> {
+  const tokensById = new Map<string, RawTokenIncluded>();
+  for (const item of included ?? []) {
+    if (item.type === 'token') tokensById.set(item.id, item);
+  }
+  return tokensById;
+}
+
+function mapPool(raw: RawPoolData, tokensById: Map<string, RawTokenIncluded>): Pool {
+  const baseToken = tokensById.get(raw.relationships.base_token.data.id);
+  return {
+    poolAddress: raw.attributes.address,
+    baseTokenSymbol: baseToken?.attributes.symbol ?? 'UNKNOWN',
+    baseTokenAddress: baseToken?.attributes.address ?? '',
+    priceUsd: parseFloat(raw.attributes.base_token_price_usd),
+    liquidityUsd: parseFloat(raw.attributes.reserve_in_usd),
+    volume24hUsd: parseFloat(raw.attributes.volume_usd.h24),
+    priceChange24hPct: parseFloat(raw.attributes.price_change_percentage.h24),
+    poolCreatedAt: new Date(raw.attributes.pool_created_at),
+  };
 }
 
 export function createGeckoTerminalClient(baseUrl: string): GeckoTerminalClient {

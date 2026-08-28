@@ -13,18 +13,29 @@ async function main() {
     process.exit(1);
   }
 
-  const pools = await client.fetchTrendingPools(config.network);
-  const pool = pools.find((p) => p.poolAddress === poolAddress);
+  const pool = await client.fetchPool(config.network, poolAddress);
   if (!pool) {
-    console.error(`Pool ${poolAddress} introuvable parmi les pools trending actuels.`);
+    console.error(`Pool ${poolAddress} introuvable sur le réseau ${config.network}.`);
+    console.error("Vérifiez l'adresse du pool (et non celle du token) et votre connexion réseau.");
     process.exit(1);
+  }
+
+  const candleLimit = Math.max(config.geckoTerminal.ohlcvLimit, 500);
+  if (candleLimit > config.geckoTerminal.ohlcvLimit) {
+    console.log(
+      `Récupération de ${candleLimit} bougies pour le backtest ` +
+        `(plus que les ${config.geckoTerminal.ohlcvLimit} configurées pour le scan en direct, ` +
+        `afin d'avoir assez d'historique).`
+    );
+  } else {
+    console.log(`Récupération de ${candleLimit} bougies pour le backtest.`);
   }
 
   const candles = await client.fetchOhlcv(
     config.network,
     poolAddress,
     config.geckoTerminal.timeframe,
-    Math.max(config.geckoTerminal.ohlcvLimit, 500)
+    candleLimit
   );
 
   const report = runBacktest(pool, candles, config);

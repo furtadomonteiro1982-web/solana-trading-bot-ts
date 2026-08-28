@@ -63,6 +63,7 @@ describe('generateSignal', () => {
       fetchTrendingPools: vi.fn(),
       fetchOhlcv: vi.fn().mockResolvedValue(candles),
       fetchPoolPrice: vi.fn(),
+      fetchPool: vi.fn(),
     };
 
     const signal = await generateSignal(client, pool, config);
