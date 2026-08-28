@@ -26,10 +26,12 @@ const pool: Pool = {
   poolAddress: 'POOL1',
   baseTokenSymbol: 'FOO',
   baseTokenAddress: 'TOKEN1',
-  // Fixed at the entry candle's close (0.9) because evaluateRisk (Task 7) derives
-  // stopLossPrice/takeProfitPrice from pool.priceUsd, not from the entry candle:
-  // 0.9 * (1 + takeProfitPct/100) = 0.9 * 1.10 = 0.99, matching the comments below.
-  priceUsd: 0.9,
+  // Deliberately far from every candle's close. evaluateRisk (Task 7) derives
+  // stopLossPrice/takeProfitPrice from pool.priceUsd, so runBacktest must substitute a
+  // point-in-time price (the entry candle's close) before calling evaluateSignal/evaluateRisk —
+  // otherwise this static, unrealistic priceUsd would leak into the risk levels and the
+  // assertions below (entryPriceUsd/exitPriceUsd/pnlUsd) would fail loudly.
+  priceUsd: 999,
   liquidityUsd: 50000,
   volume24hUsd: 10000,
   priceChange24hPct: 5,

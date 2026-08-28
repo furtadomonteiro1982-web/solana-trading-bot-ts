@@ -34,7 +34,14 @@ export function runBacktest(pool: Pool, candles: Candle[], config: BotConfig): B
   let i = minCandles;
   while (i < candles.length) {
     const window = candles.slice(0, i + 1);
-    const signal = evaluateSignal(pool, window, config);
+    // evaluateRisk derives stopLossPrice/takeProfitPrice from signal.pool.priceUsd, which is
+    // correct in the live pipeline (pool.priceUsd is the current price at decision time). In a
+    // historical replay the same static `pool` object is reused across the whole loop, so we must
+    // substitute a point-in-time price (the current window's latest close) or every trade's risk
+    // levels would be computed off whatever price the pool happened to have when fetched live,
+    // completely disconnected from the historical entry price being replayed.
+    const pointInTimePool: Pool = { ...pool, priceUsd: window[window.length - 1].close };
+    const signal = evaluateSignal(pointInTimePool, window, config);
 
     if (signal.decision === 'BUY') {
       const risk = evaluateRisk(signal, 0, config.risk.simulatedCapitalUsd, config);
