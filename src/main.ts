@@ -5,6 +5,7 @@ import { createJupiterPriceClient } from './jupiter/priceClient.js';
 import { createDb } from './store/db.js';
 import { PositionRepository } from './store/positionRepository.js';
 import { DecisionLogRepository } from './store/decisionLogRepository.js';
+import { FirstSeenRepository } from './store/firstSeenRepository.js';
 import { PaperExecutor } from './executor/paperExecutor.js';
 import { TelegramNotifier } from './notifier/telegramNotifier.js';
 import { NullNotifier } from './notifier/nullNotifier.js';
@@ -55,6 +56,7 @@ async function main() {
   const db = createDb('data/bot.sqlite');
   const positionRepo = new PositionRepository(db);
   const decisionLog = new DecisionLogRepository(db);
+  const firstSeenRepo = new FirstSeenRepository(db);
   const executor = new PaperExecutor();
   const notifier = createNotifier();
 
@@ -77,6 +79,7 @@ async function main() {
         priceClient,
         positionRepo,
         decisionLog,
+        firstSeenRepo,
         executor,
         notifier,
         config,

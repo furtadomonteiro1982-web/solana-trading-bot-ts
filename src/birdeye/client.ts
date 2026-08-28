@@ -32,9 +32,6 @@ const TIMEFRAME_SECONDS: Record<'day' | 'hour' | 'minute', number> = {
 };
 
 export class BirdeyeHttpClient implements MarketDataClient {
-  // Coûte 40 CU par adresse et la date de création ne change jamais : on ne la récupère
-  // qu'une seule fois par token pour la durée de vie du processus.
-  private creationDateCache = new Map<string, Date>();
   private lastRequestAt = 0;
 
   constructor(
@@ -49,11 +46,8 @@ export class BirdeyeHttpClient implements MarketDataClient {
     const tokens: RawTrendingToken[] = json.data.tokens;
     const pools: Pool[] = [];
     for (const token of tokens) {
-      const [price, poolCreatedAt] = await Promise.all([
-        this.fetchPrice(network, token.address),
-        this.fetchCreationDate(network, token.address),
-      ]);
-      if (price === null || poolCreatedAt === null) continue;
+      const price = await this.fetchPrice(network, token.address);
+      if (price === null) continue;
       pools.push({
         poolAddress: token.address,
         baseTokenSymbol: token.symbol,
@@ -62,7 +56,12 @@ export class BirdeyeHttpClient implements MarketDataClient {
         liquidityUsd: token.liquidity,
         volume24hUsd: token.volume24hUSD,
         priceChange24hPct: price.priceChange24h,
-        poolCreatedAt,
+        // Birdeye ne donne pas la date de création réelle sur le plan gratuit
+        // (`token_creation_info` renvoie 401 "insufficient permissions"). Le pipeline
+        // (FirstSeenRepository) remplace cette valeur par la date de première détection connue
+        // du token — ici on ne fait qu'indiquer "vu à l'instant", le meilleur défaut en l'absence
+        // d'historique.
+        poolCreatedAt: new Date(),
       });
     }
     return pools;
@@ -101,8 +100,6 @@ export class BirdeyeHttpClient implements MarketDataClient {
       // (contrairement à fetchTrendingPools, où le symbole vient gratuitement de la liste trending).
       const overviewUrl = `${this.baseUrl}/defi/token_overview?address=${poolAddress}`;
       const overview = await this.get(overviewUrl, network);
-      const poolCreatedAt = await this.fetchCreationDate(network, poolAddress);
-      if (poolCreatedAt === null) return null;
       return {
         poolAddress,
         baseTokenSymbol: overview.data.symbol,
@@ -111,7 +108,10 @@ export class BirdeyeHttpClient implements MarketDataClient {
         liquidityUsd: overview.data.liquidity,
         volume24hUsd: 0,
         priceChange24hPct: 0,
-        poolCreatedAt,
+        // Non utilisé par le backtest (runBacktest ne lit jamais poolCreatedAt) ; laissé à "vu à
+        // l'instant" par cohérence avec fetchTrendingPools, faute de date de création réelle
+        // disponible sur le plan gratuit.
+        poolCreatedAt: new Date(),
       };
     } catch (error) {
       console.warn(`Avertissement : impossible de récupérer le token ${poolAddress} : ${String(error)}`);
@@ -129,23 +129,6 @@ export class BirdeyeHttpClient implements MarketDataClient {
       return { value: json.data.value, priceChange24h: json.data.priceChange24h ?? 0 };
     } catch (error) {
       console.warn(`Avertissement : impossible de récupérer le prix de ${address} : ${String(error)}`);
-      return null;
-    }
-  }
-
-  private async fetchCreationDate(network: string, address: string): Promise<Date | null> {
-    const cached = this.creationDateCache.get(address);
-    if (cached) return cached;
-    try {
-      const url = `${this.baseUrl}/defi/token_creation_info?address=${address}`;
-      const json = await this.get(url, network);
-      const date = new Date(json.data.blockUnixTime * 1000);
-      this.creationDateCache.set(address, date);
-      return date;
-    } catch (error) {
-      console.warn(
-        `Avertissement : impossible de récupérer la date de création de ${address} : ${String(error)}`
-      );
       return null;
     }
   }
@@ -209,6 +192,13 @@ async function fetchJsonWithRetry(
 
     if (response.status === 404) {
       throw new Error(`Birdeye API error: 404 Not Found`);
+    }
+
+    // Un 401/403 signifie que la clé n'a pas accès à cette ressource (endpoint hors du plan
+    // gratuit, par exemple) — retenter ne changera jamais le résultat, contrairement à un 429 ou
+    // une erreur réseau transitoire.
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(`Birdeye API error: ${response.status} ${response.statusText}`);
     }
 
     lastError = new Error(`Birdeye API error: ${response.status} ${response.statusText}`);

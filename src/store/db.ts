@@ -33,6 +33,10 @@ export function createDb(dbPath: string): Database.Database {
       decision TEXT NOT NULL,
       reason TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS first_seen (
+      pool_address TEXT PRIMARY KEY,
+      first_seen_at TEXT NOT NULL
+    );
   `);
   return db;
 }

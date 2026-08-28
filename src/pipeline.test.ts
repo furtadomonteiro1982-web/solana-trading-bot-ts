@@ -3,6 +3,7 @@ import type Database from 'better-sqlite3';
 import { createDb } from './store/db.js';
 import { PositionRepository } from './store/positionRepository.js';
 import { DecisionLogRepository } from './store/decisionLogRepository.js';
+import { FirstSeenRepository } from './store/firstSeenRepository.js';
 import { runCycle } from './pipeline.js';
 import type { MarketDataClient } from './birdeye/client.js';
 import type { PriceClient } from './jupiter/priceClient.js';
@@ -52,6 +53,7 @@ const buyCandles = [candle(1.0, 0), candle(0.9, 1), candle(0.8, 2), candle(0.9, 
 let db: Database.Database;
 let positionRepo: PositionRepository;
 let decisionLog: DecisionLogRepository;
+let firstSeenRepo: FirstSeenRepository;
 let executor: Executor;
 let executeMock: ReturnType<typeof vi.fn<(order: Order) => Promise<Fill>>>;
 let client: MarketDataClient;
@@ -59,10 +61,18 @@ let priceClient: PriceClient;
 let notifier: Notifier;
 let notifyMock: ReturnType<typeof vi.fn<(message: string) => Promise<void>>>;
 
+/** Simule un pool déjà connu du bot depuis longtemps, pour passer le filtre minPoolAgeMinutes
+ *  (le client Birdeye ne fournit plus poolCreatedAt : le pipeline le déduit de FirstSeenRepository). */
+function seedOldFirstSeen(address: string): void {
+  firstSeenRepo.getOrRecordFirstSeen(address, new Date(Date.now() - 24 * 60 * 60 * 1000));
+}
+
 beforeEach(() => {
   db = createDb(':memory:');
   positionRepo = new PositionRepository(db);
   decisionLog = new DecisionLogRepository(db);
+  firstSeenRepo = new FirstSeenRepository(db);
+  seedOldFirstSeen('POOL1');
   executeMock = vi.fn<(order: Order) => Promise<Fill>>().mockImplementation(
     async (order: Order): Promise<Fill> => ({
       poolAddress: order.poolAddress,
@@ -86,7 +96,7 @@ beforeEach(() => {
 
 describe('runCycle', () => {
   it('scans, filters, signals, opens a position, and leaves it open', async () => {
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
 
     expect(summary).toEqual({
       poolsScanned: 1,
@@ -107,11 +117,26 @@ describe('runCycle', () => {
   it('rejects a pool that fails the filter without calling the client for OHLCV', async () => {
     client.fetchTrendingPools = vi.fn().mockResolvedValue([{ ...pool, liquidityUsd: 10 }]);
 
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
 
     expect(summary.poolsPassedFilter).toBe(0);
     expect(summary.buySignals).toBe(0);
     expect(client.fetchOhlcv).not.toHaveBeenCalled();
+  });
+
+  it('rejects a pool never seen before as too young, then accepts it once enough real time has passed', async () => {
+    // Birdeye ne fournit plus poolCreatedAt (401 hors plan gratuit sur token_creation_info) : le
+    // pipeline le déduit de FirstSeenRepository. Un pool jamais vu doit donc être traité comme
+    // âgé de 0 minute, pas comme s'il passait automatiquement le filtre.
+    const brandNewPool: Pool = { ...pool, poolAddress: 'POOL_NEW' };
+    client.fetchTrendingPools = vi.fn().mockResolvedValue([brandNewPool]);
+
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
+
+    expect(summary.poolsPassedFilter).toBe(0);
+    expect(
+      decisionLog.getRecent(20).some((entry) => /min < minimum 60 min/.test(entry.reason))
+    ).toBe(true);
   });
 
   it('records the executor fill price as the entry price, not the requested order price', async () => {
@@ -124,7 +149,7 @@ describe('runCycle', () => {
       filledAt: new Date(),
     }));
 
-    await runCycle({ client, priceClient, positionRepo, decisionLog, executor, notifier, config });
+    await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
 
     const [position] = positionRepo.getOpenPositions();
     expect(position.entryPriceUsd).toBe(0.95);
@@ -133,13 +158,13 @@ describe('runCycle', () => {
 
   it('does not open a second position on a pool that already has one open', async () => {
     // Premier cycle : la position est ouverte.
-    await runCycle({ client, priceClient, positionRepo, decisionLog, executor, notifier, config });
+    await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
     expect(positionRepo.getOpenPositions()).toHaveLength(1);
     const buyCallsAfterFirstCycle = executeMock.mock.calls.filter((c) => c[0].side === 'BUY').length;
     expect(buyCallsAfterFirstCycle).toBe(1);
 
     // Deuxième cycle : le même signal BUY se reproduit sur le même pool.
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
 
     expect(summary.buySignals).toBe(1);
     expect(summary.positionsOpened).toBe(0);
@@ -152,6 +177,7 @@ describe('runCycle', () => {
 
   it('keeps processing other pools and still reviews open positions when one pool throws', async () => {
     const pool2: Pool = { ...pool, poolAddress: 'POOL2', baseTokenSymbol: 'BAR' };
+    seedOldFirstSeen('POOL2');
     client.fetchTrendingPools = vi.fn().mockResolvedValue([pool, pool2]);
     client.fetchOhlcv = vi.fn().mockImplementation(async (_network, poolAddress) => {
       if (poolAddress === 'POOL1') throw new Error('API Birdeye indisponible');
@@ -176,7 +202,7 @@ describe('runCycle', () => {
       ])
     );
 
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
 
     // Le second pool est traité malgré l'échec du premier.
     expect(summary.positionsOpened).toBe(1);
@@ -215,7 +241,7 @@ describe('runCycle', () => {
     });
     priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['POOL3', 1.6]]));
 
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
 
     expect(summary.poolsScanned).toBe(0);
     expect(summary.positionsClosed).toBe(1);
@@ -245,7 +271,7 @@ describe('runCycle', () => {
     });
     client.fetchTrendingPools = vi.fn().mockResolvedValue([]);
 
-    await runCycle({ client, priceClient, positionRepo, decisionLog, executor, notifier, config });
+    await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
 
     expect(priceClient.fetchPrices).toHaveBeenCalledTimes(1);
     expect(priceClient.fetchPrices).toHaveBeenCalledWith(expect.arrayContaining(['POOL3', 'POOL4']));
@@ -254,6 +280,8 @@ describe('runCycle', () => {
   it('caps the number of pools evaluated per cycle at maxPoolsPerCycle, without calling the API for the rest', async () => {
     const pool2: Pool = { ...pool, poolAddress: 'POOL2', baseTokenSymbol: 'BAR' };
     const pool3: Pool = { ...pool, poolAddress: 'POOL3', baseTokenSymbol: 'BAZ' };
+    seedOldFirstSeen('POOL2');
+    seedOldFirstSeen('POOL3');
     client.fetchTrendingPools = vi.fn().mockResolvedValue([pool, pool2, pool3]);
     const cappedConfig = { ...config, maxPoolsPerCycle: 2 } as BotConfig;
 
@@ -262,6 +290,7 @@ describe('runCycle', () => {
       priceClient,
       positionRepo,
       decisionLog,
+      firstSeenRepo,
       executor,
       notifier,
       config: cappedConfig,
@@ -278,9 +307,11 @@ describe('runCycle', () => {
   it('processes every filtered pool when maxPoolsPerCycle is absent (existing configs keep working)', async () => {
     const pool2: Pool = { ...pool, poolAddress: 'POOL2', baseTokenSymbol: 'BAR' };
     const pool3: Pool = { ...pool, poolAddress: 'POOL3', baseTokenSymbol: 'BAZ' };
+    seedOldFirstSeen('POOL2');
+    seedOldFirstSeen('POOL3');
     client.fetchTrendingPools = vi.fn().mockResolvedValue([pool, pool2, pool3]);
 
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
 
     expect(summary.poolsPassedFilter).toBe(3);
     expect(client.fetchOhlcv).toHaveBeenCalledTimes(3);

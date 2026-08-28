@@ -3,6 +3,7 @@ import type { MarketDataClient } from './birdeye/client.js';
 import type { PriceClient } from './jupiter/priceClient.js';
 import type { PositionRepository } from './store/positionRepository.js';
 import type { DecisionLogRepository } from './store/decisionLogRepository.js';
+import type { FirstSeenRepository } from './store/firstSeenRepository.js';
 import type { Executor, Position } from './types.js';
 import type { Notifier } from './notifier/notifier.js';
 import { scanPools } from './scanner.js';
@@ -16,6 +17,7 @@ export interface PipelineDeps {
   priceClient: PriceClient;
   positionRepo: PositionRepository;
   decisionLog: DecisionLogRepository;
+  firstSeenRepo: FirstSeenRepository;
   executor: Executor;
   notifier: Notifier;
   config: BotConfig;
@@ -31,7 +33,7 @@ export interface CycleSummary {
 }
 
 export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
-  const { client, priceClient, positionRepo, decisionLog, executor, notifier, config } = deps;
+  const { client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config } = deps;
   const now = new Date();
 
   let poolsScanned = 0;
@@ -48,7 +50,14 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
   try {
     const pools = await scanPools(client, config);
     poolsScanned = pools.length;
-    const filterResults = filterPools(pools, config, now);
+    // Le client Birdeye ne connaît pas la vraie date de création (hors plan gratuit) : on la
+    // remplace ici par la date de première détection de ce pool par ce bot (voir
+    // FirstSeenRepository), avant que le filtre n'évalue minPoolAgeMinutes.
+    const poolsWithFirstSeenAge = pools.map((pool) => ({
+      ...pool,
+      poolCreatedAt: firstSeenRepo.getOrRecordFirstSeen(pool.poolAddress, now),
+    }));
+    const filterResults = filterPools(poolsWithFirstSeenAge, config, now);
     // L'espacement entre requêtes Birdeye (1 req/s) est géré en interne par le client
     // (MarketDataClient), pas ici — ce compteur ne sert plus qu'à borner le nombre de pools
     // réellement évalués par cycle.

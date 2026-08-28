@@ -108,14 +108,25 @@ commentaires en tête de `src/backtest.ts`).
 
 ## Où sont stockés les résultats
 
-Tout est dans une base SQLite locale : `data/bot.sqlite`. Deux tables :
+Tout est dans une base SQLite locale : `data/bot.sqlite`. Trois tables :
 
 - **`positions`** — une ligne par position simulée : pool, symbole, prix et date d'entrée,
   taille, niveaux de stop-loss / take-profit, statut (`OPEN` ou `CLOSED`) et, une fois fermée,
   le prix de sortie, la raison (`TAKE_PROFIT`, `STOP_LOSS`, `TRAILING_STOP`) et le PnL.
 - **`decision_logs`** — la trace de chaque décision, y compris les refus : à quelle étape
-  (`FILTER`, `SIGNAL`, `RISK`, `ERROR`), pour quel pool et surtout **pourquoi**. C'est ici qu'on
-  regarde pour comprendre l'inaction du bot.
+  (`FILTER`, `SIGNAL`, `RISK`, `THROTTLE`, `ERROR`), pour quel pool et surtout **pourquoi**. C'est
+  ici qu'on regarde pour comprendre l'inaction du bot.
+- **`first_seen`** — la date à laquelle ce bot a vu chaque pool pour la première fois. Sert
+  d'approximation à l'âge réel du pool (voir la limite ci-dessous) et persiste entre les
+  redémarrages.
+
+**Limite connue : l'âge des pools est approximatif.** Birdeye ne donne la vraie date de création
+d'un token que sur un plan payant (`token_creation_info` renvoie 401 sur le plan gratuit). Le
+filtre `minPoolAgeMinutes` mesure donc en réalité *depuis combien de temps ce bot suit ce token*
+(table `first_seen`), pas son âge réel on-chain. Un token déjà ancien mais jamais croisé par le
+bot sera traité comme tout juste créé la première fois qu'il apparaît dans le scan — le
+garde-fou anti-rug-pull est donc plus conservateur qu'avec la vraie date de création, pas moins
+protecteur.
 
 Le fichier se lit avec n'importe quel outil SQLite (par exemple
 [DB Browser for SQLite](https://sqlitebrowser.org/)).

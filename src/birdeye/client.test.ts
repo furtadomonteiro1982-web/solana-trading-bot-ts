@@ -16,11 +16,6 @@ const priceResponse = {
   data: { value: 0.5, priceChange24h: 5.5 },
 };
 
-const creationInfoResponse = {
-  success: true,
-  data: { blockUnixTime: Math.floor(new Date('2026-08-01T00:00:00.000Z').getTime() / 1000) },
-};
-
 const ohlcvResponse = {
   success: true,
   data: {
@@ -61,11 +56,10 @@ describe('BirdeyeClient', () => {
     vi.unstubAllGlobals();
   });
 
-  it('fetchTrendingPools hydrates each trending token with price and creation date', async () => {
+  it('fetchTrendingPools hydrates each trending token with its price', async () => {
     const fetchMock = routeByUrl({
       '/defi/token_trending': trendingResponse,
       '/defi/price': priceResponse,
-      '/defi/token_creation_info': creationInfoResponse,
     });
     vi.stubGlobal('fetch', fetchMock);
     const client = createBirdeyeClient('https://public-api.birdeye.so', 'key', 0);
@@ -81,7 +75,10 @@ describe('BirdeyeClient', () => {
         liquidityUsd: 25000,
         volume24hUsd: 10000,
         priceChange24hPct: 5.5,
-        poolCreatedAt: new Date('2026-08-01T00:00:00.000Z'),
+        // Birdeye ne fournit pas la vraie date de création sur le plan gratuit : le client se
+        // contente d'un placeholder "vu à l'instant", que le pipeline (FirstSeenRepository)
+        // remplace ensuite par la première détection connue.
+        poolCreatedAt: expect.any(Date),
       },
     ]);
   });
@@ -90,7 +87,6 @@ describe('BirdeyeClient', () => {
     const fetchMock = routeByUrl({
       '/defi/token_trending': trendingResponse,
       '/defi/price': priceResponse,
-      '/defi/token_creation_info': creationInfoResponse,
     });
     vi.stubGlobal('fetch', fetchMock);
     const client = createBirdeyeClient('https://public-api.birdeye.so', 'ma-cle', 0);
@@ -104,23 +100,6 @@ describe('BirdeyeClient', () => {
     });
   });
 
-  it('caches token_creation_info per address across calls, saving CU on the second lookup', async () => {
-    const creationInfoFetch = vi.fn().mockResolvedValue(jsonResponse(creationInfoResponse));
-    const fetchMock = vi.fn(async (url: string) => {
-      if (url.includes('/defi/token_trending')) return jsonResponse(trendingResponse);
-      if (url.includes('/defi/price')) return jsonResponse(priceResponse);
-      if (url.includes('/defi/token_creation_info')) return creationInfoFetch(url);
-      throw new Error(`URL inattendue : ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
-    const client = createBirdeyeClient('https://public-api.birdeye.so', 'key', 0);
-
-    await client.fetchTrendingPools('solana');
-    await client.fetchTrendingPools('solana');
-
-    expect(creationInfoFetch).toHaveBeenCalledTimes(1);
-  });
-
   it('fetchOhlcv maps Birdeye items (already chronological) into Candle objects', async () => {
     vi.stubGlobal('fetch', routeByUrl({ '/defi/ohlcv': ohlcvResponse }));
     const client = createBirdeyeClient('https://public-api.birdeye.so', 'key', 0);
@@ -131,14 +110,8 @@ describe('BirdeyeClient', () => {
     expect(candles[0].timestamp).toEqual(new Date(800 * 1000));
   });
 
-  it('fetchPool maps token_overview and creation_info into a Pool object', async () => {
-    vi.stubGlobal(
-      'fetch',
-      routeByUrl({
-        '/defi/token_overview': overviewResponse,
-        '/defi/token_creation_info': creationInfoResponse,
-      })
-    );
+  it('fetchPool maps token_overview into a Pool object', async () => {
+    vi.stubGlobal('fetch', routeByUrl({ '/defi/token_overview': overviewResponse }));
     const client = createBirdeyeClient('https://public-api.birdeye.so', 'key', 0);
 
     const pool = await client.fetchPool('solana', 'TOKEN1');
@@ -151,17 +124,12 @@ describe('BirdeyeClient', () => {
       liquidityUsd: 25000,
       volume24hUsd: 0,
       priceChange24hPct: 0,
-      poolCreatedAt: new Date('2026-08-01T00:00:00.000Z'),
+      poolCreatedAt: expect.any(Date),
     });
   });
 
   it('fetchPool returns null instead of throwing for an unknown address', async () => {
-    vi.stubGlobal('fetch', routeByUrl({ '/defi/token_overview': {} }));
-    // Le mock renvoie 200 par défaut ; on force un 404 explicitement ici.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(jsonResponse({}, 404))
-    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 404)));
     const client = createBirdeyeClient('https://public-api.birdeye.so', 'key', 0);
 
     const pool = await client.fetchPool('solana', 'INCONNU');
@@ -176,6 +144,17 @@ describe('BirdeyeClient', () => {
 
     await expect(client.fetchOhlcv('solana', 'TOKEN1', 'hour', 3)).rejects.toThrow(/Birdeye/);
     expect(notFoundFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry a 401 — an API key permission problem never resolves itself', async () => {
+    // Cas réel rencontré : un endpoint hors du plan gratuit renvoie 401 sur chaque tentative,
+    // ce qui gaspillait 4 requêtes (et leur backoff) avant que ce comportement soit ajouté.
+    const unauthorizedFetch = vi.fn().mockResolvedValue(jsonResponse({}, 401));
+    vi.stubGlobal('fetch', unauthorizedFetch);
+    const client = createBirdeyeClient('https://public-api.birdeye.so', 'key', 0);
+
+    await expect(client.fetchOhlcv('solana', 'TOKEN1', 'hour', 3)).rejects.toThrow(/Birdeye/);
+    expect(unauthorizedFetch).toHaveBeenCalledTimes(1);
   });
 
   it('retries only once on a persistent 429, like the GeckoTerminal client did', async () => {
