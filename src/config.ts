@@ -28,13 +28,16 @@ export const BotConfigSchema = z.object({
     takeProfitPct: z.number().positive(),
     trailingStopPct: z.number().positive().max(100),
   }),
-  geckoTerminal: z.object({
+  birdeye: z.object({
     baseUrl: z.url(),
     timeframe: z.enum(['day', 'hour', 'minute']),
     ohlcvLimit: z.number().int().positive(),
-    // Délai entre deux appels API pour des pools différents au sein d'un même cycle, pour rester
-    // sous le quota du plan gratuit au lieu de rafaler tous les appels d'un coup.
-    perPoolDelayMs: z.number().nonnegative().default(400),
+    // Espacement minimum entre deux requêtes Birdeye (tous endpoints confondus), pour respecter
+    // la limite de 1 requête/seconde du plan gratuit.
+    minIntervalMs: z.number().nonnegative().default(1100),
+  }),
+  jupiter: z.object({
+    baseUrl: z.url(),
   }),
 });
 

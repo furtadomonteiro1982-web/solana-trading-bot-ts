@@ -1,30 +1,42 @@
+import fs from 'node:fs';
 import { loadConfig } from './config.js';
-import { createGeckoTerminalClient } from './geckoterminal/client.js';
+import { createBirdeyeClient } from './birdeye/client.js';
 import { runBacktest } from './backtest.js';
 
 async function main() {
+  if (fs.existsSync('.env')) {
+    process.loadEnvFile('.env');
+  }
+  const birdeyeApiKey = process.env.BIRDEYE_API_KEY;
+  if (!birdeyeApiKey) {
+    console.error(
+      "Erreur : BIRDEYE_API_KEY absent de .env. Créez une clé gratuite sur https://birdeye.so et ajoutez-la à .env (voir .env.example)."
+    );
+    process.exit(1);
+  }
+
   const config = loadConfig('config/config.json');
-  const client = createGeckoTerminalClient(config.geckoTerminal.baseUrl);
+  const client = createBirdeyeClient(config.birdeye.baseUrl, birdeyeApiKey, config.birdeye.minIntervalMs);
   const poolAddress = process.argv[2];
 
   if (!poolAddress) {
     console.error('Usage : npm run backtest -- <poolAddress>');
-    console.error('Trouvez une poolAddress sur https://www.geckoterminal.com/solana ou https://dexscreener.com/solana');
+    console.error("Trouvez l'adresse d'un token sur https://birdeye.so/?chain=solana ou https://dexscreener.com/solana");
     process.exit(1);
   }
 
   const pool = await client.fetchPool(config.network, poolAddress);
   if (!pool) {
-    console.error(`Pool ${poolAddress} introuvable sur le réseau ${config.network}.`);
-    console.error("Vérifiez l'adresse du pool (et non celle du token) et votre connexion réseau.");
+    console.error(`Token ${poolAddress} introuvable sur le réseau ${config.network}.`);
+    console.error("Vérifiez l'adresse du token (mint Solana) et votre connexion réseau.");
     process.exit(1);
   }
 
-  const candleLimit = Math.max(config.geckoTerminal.ohlcvLimit, 500);
-  if (candleLimit > config.geckoTerminal.ohlcvLimit) {
+  const candleLimit = Math.max(config.birdeye.ohlcvLimit, 500);
+  if (candleLimit > config.birdeye.ohlcvLimit) {
     console.log(
       `Récupération de ${candleLimit} bougies pour le backtest ` +
-        `(plus que les ${config.geckoTerminal.ohlcvLimit} configurées pour le scan en direct, ` +
+        `(plus que les ${config.birdeye.ohlcvLimit} configurées pour le scan en direct, ` +
         `afin d'avoir assez d'historique).`
     );
   } else {
@@ -34,7 +46,7 @@ async function main() {
   const candles = await client.fetchOhlcv(
     config.network,
     poolAddress,
-    config.geckoTerminal.timeframe,
+    config.birdeye.timeframe,
     candleLimit
   );
 

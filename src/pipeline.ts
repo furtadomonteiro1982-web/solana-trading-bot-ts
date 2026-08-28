@@ -1,5 +1,6 @@
 import type { BotConfig } from './config.js';
-import type { GeckoTerminalClient } from './geckoterminal/client.js';
+import type { MarketDataClient } from './birdeye/client.js';
+import type { PriceClient } from './jupiter/priceClient.js';
 import type { PositionRepository } from './store/positionRepository.js';
 import type { DecisionLogRepository } from './store/decisionLogRepository.js';
 import type { Executor, Position } from './types.js';
@@ -11,7 +12,8 @@ import { evaluateRisk } from './risk.js';
 import { reviewOpenPositions } from './positionManager.js';
 
 export interface PipelineDeps {
-  client: GeckoTerminalClient;
+  client: MarketDataClient;
+  priceClient: PriceClient;
   positionRepo: PositionRepository;
   decisionLog: DecisionLogRepository;
   executor: Executor;
@@ -29,7 +31,7 @@ export interface CycleSummary {
 }
 
 export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
-  const { client, positionRepo, decisionLog, executor, notifier, config } = deps;
+  const { client, priceClient, positionRepo, decisionLog, executor, notifier, config } = deps;
   const now = new Date();
 
   let poolsScanned = 0;
@@ -47,7 +49,10 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
     const pools = await scanPools(client, config);
     poolsScanned = pools.length;
     const filterResults = filterPools(pools, config, now);
-    let apiCallsThisCycle = 0;
+    // L'espacement entre requêtes Birdeye (1 req/s) est géré en interne par le client
+    // (MarketDataClient), pas ici — ce compteur ne sert plus qu'à borner le nombre de pools
+    // réellement évalués par cycle.
+    let poolsEvaluatedThisCycle = 0;
 
     for (const result of filterResults) {
       try {
@@ -63,12 +68,12 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
         }
         poolsPassedFilter += 1;
 
-        // Limite le nombre de pools réellement évalués (et donc d'appels API) par cycle,
-        // indépendamment de l'espacement entre appels : les pools au-delà de la limite sont
-        // repris au cycle suivant plutôt que de continuer à consommer le quota du cycle actuel.
+        // Limite le nombre de pools réellement évalués (et donc d'appels API) par cycle : les
+        // pools au-delà de la limite sont repris au cycle suivant plutôt que de continuer à
+        // consommer le quota API du cycle actuel.
         if (
           config.maxPoolsPerCycle !== undefined &&
-          apiCallsThisCycle >= config.maxPoolsPerCycle
+          poolsEvaluatedThisCycle >= config.maxPoolsPerCycle
         ) {
           decisionLog.log({
             timestamp: now,
@@ -79,13 +84,7 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
           });
           continue;
         }
-
-        // Espace les appels OHLCV entre pools (mais jamais avant le tout premier de ce cycle),
-        // pour ne pas rafaler jusqu'à 20 requêtes en quelques secondes et se faire rate-limiter.
-        if (apiCallsThisCycle > 0) {
-          await sleep(config.geckoTerminal.perPoolDelayMs ?? 0);
-        }
-        apiCallsThisCycle += 1;
+        poolsEvaluatedThisCycle += 1;
 
         const signal = await generateSignal(client, result.pool, config);
         decisionLog.log({
@@ -191,9 +190,13 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
   }
 
   try {
+    // Un seul appel Jupiter batché pour toutes les positions ouvertes, au lieu d'un appel par
+    // position — Jupiter accepte plusieurs adresses séparées par des virgules en une requête.
+    const openAddresses = positionRepo.getOpenPositions().map((position) => position.poolAddress);
+    const prices = await priceClient.fetchPrices(openAddresses);
     const closedPositions = await reviewOpenPositions(
       positionRepo,
-      (poolAddress) => client.fetchPoolPrice(config.network, poolAddress),
+      async (poolAddress) => prices.get(poolAddress) ?? null,
       executor,
       now
     );
@@ -222,8 +225,4 @@ async function notifyPositionClosed(notifier: Notifier, position: Position): Pro
     `🔴 Position fermée : ${position.baseTokenSymbol} (${position.poolAddress})\n` +
       `Raison : ${position.closeReason} — PnL : ${sign}${pnl.toFixed(2)}$`
   );
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { evaluateSignal, generateSignal } from './signal.js';
-import type { GeckoTerminalClient } from './geckoterminal/client.js';
+import type { MarketDataClient } from './birdeye/client.js';
 import type { BotConfig } from './config.js';
 import type { Candle, Pool } from './types.js';
 
@@ -13,7 +13,7 @@ const config = {
     momentumLookbackCandles: 1,
     momentumMinPct: 0,
   },
-  geckoTerminal: { baseUrl: 'x', timeframe: 'hour', ohlcvLimit: 100 },
+  birdeye: { baseUrl: 'x', timeframe: 'hour', ohlcvLimit: 100 },
 } as BotConfig;
 
 const pool: Pool = {
@@ -59,10 +59,9 @@ describe('evaluateSignal', () => {
 describe('generateSignal', () => {
   it('fetches OHLCV from the client and delegates to evaluateSignal', async () => {
     const candles = [candle(1.0, 0), candle(0.9, 1), candle(0.8, 2), candle(0.9, 3)];
-    const client: GeckoTerminalClient = {
+    const client: MarketDataClient = {
       fetchTrendingPools: vi.fn(),
       fetchOhlcv: vi.fn().mockResolvedValue(candles),
-      fetchPoolPrice: vi.fn(),
       fetchPool: vi.fn(),
     };
 

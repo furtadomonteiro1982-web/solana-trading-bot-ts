@@ -30,10 +30,13 @@ const validConfig = {
     takeProfitPct: 50,
     trailingStopPct: 15,
   },
-  geckoTerminal: {
-    baseUrl: 'https://api.geckoterminal.com/api/v2',
+  birdeye: {
+    baseUrl: 'https://public-api.birdeye.so',
     timeframe: 'hour',
     ohlcvLimit: 100,
+  },
+  jupiter: {
+    baseUrl: 'https://lite-api.jup.ag',
   },
 };
 

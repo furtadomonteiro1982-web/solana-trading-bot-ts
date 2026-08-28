@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { loadConfig } from './config.js';
-import { createGeckoTerminalClient } from './geckoterminal/client.js';
+import { createBirdeyeClient } from './birdeye/client.js';
+import { createJupiterPriceClient } from './jupiter/priceClient.js';
 import { createDb } from './store/db.js';
 import { PositionRepository } from './store/positionRepository.js';
 import { DecisionLogRepository } from './store/decisionLogRepository.js';
@@ -38,8 +39,19 @@ async function main() {
     process.loadEnvFile('.env');
   }
 
+  // Contrairement à Telegram (facultatif, dégrade vers NullNotifier), Birdeye est la seule
+  // source de données du bot : sans clé API, il ne peut littéralement rien scanner.
+  const birdeyeApiKey = process.env.BIRDEYE_API_KEY;
+  if (!birdeyeApiKey) {
+    console.error(
+      "Erreur : BIRDEYE_API_KEY absent de .env. Créez une clé gratuite sur https://birdeye.so et ajoutez-la à .env (voir .env.example)."
+    );
+    process.exit(1);
+  }
+
   const config = loadConfig('config/config.json');
-  const client = createGeckoTerminalClient(config.geckoTerminal.baseUrl);
+  const client = createBirdeyeClient(config.birdeye.baseUrl, birdeyeApiKey, config.birdeye.minIntervalMs);
+  const priceClient = createJupiterPriceClient(config.jupiter.baseUrl);
   const db = createDb('data/bot.sqlite');
   const positionRepo = new PositionRepository(db);
   const decisionLog = new DecisionLogRepository(db);
@@ -60,7 +72,15 @@ async function main() {
   while (!stopRequested) {
     const cycleStart = Date.now();
     try {
-      const summary = await runCycle({ client, positionRepo, decisionLog, executor, notifier, config });
+      const summary = await runCycle({
+        client,
+        priceClient,
+        positionRepo,
+        decisionLog,
+        executor,
+        notifier,
+        config,
+      });
       console.log(
         `Cycle terminé : ${summary.poolsScanned} pools scannés, ${summary.poolsPassedFilter} retenus après filtre, ` +
           `${summary.buySignals} signaux BUY, ${summary.positionsOpened} position(s) ouverte(s), ` +

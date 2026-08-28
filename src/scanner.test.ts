@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { scanPools } from './scanner.js';
-import type { GeckoTerminalClient } from './geckoterminal/client.js';
+import type { MarketDataClient } from './birdeye/client.js';
 import type { BotConfig } from './config.js';
 import type { Pool } from './types.js';
 
@@ -21,10 +21,9 @@ const config = { network: 'solana' } as BotConfig;
 
 describe('scanPools', () => {
   it('returns the pools from the client', async () => {
-    const client: GeckoTerminalClient = {
+    const client: MarketDataClient = {
       fetchTrendingPools: vi.fn().mockResolvedValue([makePool('A'), makePool('B')]),
       fetchOhlcv: vi.fn(),
-      fetchPoolPrice: vi.fn(),
       fetchPool: vi.fn(),
     };
 
@@ -35,10 +34,9 @@ describe('scanPools', () => {
   });
 
   it('deduplicates pools with the same address', async () => {
-    const client: GeckoTerminalClient = {
+    const client: MarketDataClient = {
       fetchTrendingPools: vi.fn().mockResolvedValue([makePool('A'), makePool('A')]),
       fetchOhlcv: vi.fn(),
-      fetchPoolPrice: vi.fn(),
       fetchPool: vi.fn(),
     };
 

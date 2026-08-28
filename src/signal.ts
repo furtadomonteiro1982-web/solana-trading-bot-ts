@@ -1,5 +1,5 @@
 import type { BotConfig } from './config.js';
-import type { GeckoTerminalClient } from './geckoterminal/client.js';
+import type { MarketDataClient } from './birdeye/client.js';
 import type { Candle, Pool, Signal } from './types.js';
 import { calculateRSI } from './indicators/rsi.js';
 import { calculateSMA } from './indicators/sma.js';
@@ -44,15 +44,15 @@ export function evaluateSignal(pool: Pool, candles: Candle[], config: BotConfig)
 }
 
 export async function generateSignal(
-  client: GeckoTerminalClient,
+  client: MarketDataClient,
   pool: Pool,
   config: BotConfig
 ): Promise<Signal> {
   const candles = await client.fetchOhlcv(
     config.network,
     pool.poolAddress,
-    config.geckoTerminal.timeframe,
-    config.geckoTerminal.ohlcvLimit
+    config.birdeye.timeframe,
+    config.birdeye.ohlcvLimit
   );
   return evaluateSignal(pool, candles, config);
 }
