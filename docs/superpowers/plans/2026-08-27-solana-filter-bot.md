@@ -2393,15 +2393,39 @@ export interface BacktestReport {
 /**
  * Simplification: position sizing always uses config.risk.simulatedCapitalUsd
  * (not compounded with prior trade PnL), so results stay simple to reason about.
+ *
+ * Écart de fidélité entre backtest et temps réel — le pipeline live entre au prix spot du pool
+ * (pool.priceUsd, issu de l'endpoint trending_pools), alors que le backtest entre à la clôture de
+ * la bougie historique (entryCandle.close). Ces deux prix proviennent de sources différentes et
+ * n'ont pas la même fraîcheur : les résultats du backtest sont donc une approximation du
+ * comportement réel, pas une prédiction exacte.
+ *
+ * Limite de backtesting assumée — quand le take-profit et le stop-loss sont tous deux atteints à
+ * l'intérieur d'une même bougie, le take-profit est vérifié en premier (voir la boucle de sortie
+ * ci-dessous) et l'emporte donc systématiquement. Cela biaise légèrement les résultats du côté
+ * optimiste. Corriger ce biais exigerait de connaître l'ordre des prix à l'intérieur de la bougie,
+ * information que les données OHLCV ne fournissent pas.
  */
 export function runBacktest(pool: Pool, candles: Candle[], config: BotConfig): BacktestReport {
-  const minCandles = Math.max(config.indicators.rsiPeriod, config.indicators.smaPeriod) + 1;
+  const minCandles =
+    Math.max(
+      config.indicators.rsiPeriod,
+      config.indicators.smaPeriod,
+      config.indicators.momentumLookbackCandles
+    ) + 1;
   const trades: BacktestTrade[] = [];
 
   let i = minCandles;
   while (i < candles.length) {
     const window = candles.slice(0, i + 1);
-    const signal = evaluateSignal(pool, window, config);
+    // evaluateRisk derives stopLossPrice/takeProfitPrice from signal.pool.priceUsd, which is
+    // correct in the live pipeline (pool.priceUsd is the current price at decision time). In a
+    // historical replay the same static `pool` object is reused across the whole loop, so we must
+    // substitute a point-in-time price (the current window's latest close) or every trade's risk
+    // levels would be computed off whatever price the pool happened to have when fetched live,
+    // completely disconnected from the historical entry price being replayed.
+    const pointInTimePool: Pool = { ...pool, priceUsd: window[window.length - 1].close };
+    const signal = evaluateSignal(pointInTimePool, window, config);
 
     if (signal.decision === 'BUY') {
       const risk = evaluateRisk(signal, 0, config.risk.simulatedCapitalUsd, config);
@@ -2417,6 +2441,8 @@ export function runBacktest(pool: Pool, candles: Candle[], config: BotConfig): B
           const candle = candles[j];
           if (candle.high > highestPrice) highestPrice = candle.high;
 
+          // Take-profit vérifié avant le stop-loss : si les deux sont touchés dans la même bougie,
+          // c'est le take-profit qui l'emporte (biais optimiste assumé, cf. l'en-tête du fichier).
           if (candle.high >= risk.takeProfitPrice) {
             exitIndex = j;
             exitPrice = risk.takeProfitPrice;
