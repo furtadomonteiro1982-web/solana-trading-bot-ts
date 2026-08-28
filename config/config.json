@@ -24,6 +24,6 @@
     "baseUrl": "https://api.geckoterminal.com/api/v2",
     "timeframe": "hour",
     "ohlcvLimit": 100,
-    "perPoolDelayMs": 400
+    "perPoolDelayMs": 800
   }
 }
