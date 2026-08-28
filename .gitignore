@@ -3,3 +3,6 @@ dist/
 data/
 *.sqlite
 .env
+
+# Exports de session Claude Code (peuvent contenir des secrets collés en clair)
+*-on-franceis.txt
