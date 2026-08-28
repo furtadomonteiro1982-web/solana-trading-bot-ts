@@ -50,4 +50,17 @@ describe('loadConfig', () => {
     const filePath = writeTempConfig(withoutRisk);
     expect(() => loadConfig(filePath)).toThrow(/Config invalide/);
   });
+
+  it('throws a French error when the config file does not exist', () => {
+    const missingPath = path.join(os.tmpdir(), 'bot-config-inexistant', 'config.json');
+    expect(() => loadConfig(missingPath)).toThrow(/Impossible de lire ou parser la config/);
+  });
+
+  it('throws a French error when the config file contains malformed JSON', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bot-config-'));
+    const filePath = path.join(dir, 'config.json');
+    fs.writeFileSync(filePath, '{ invalid json');
+
+    expect(() => loadConfig(filePath)).toThrow(/Impossible de lire ou parser la config/);
+  });
 });

@@ -24,7 +24,7 @@ export const BotConfigSchema = z.object({
     trailingStopPct: z.number().positive().max(100),
   }),
   geckoTerminal: z.object({
-    baseUrl: z.string().url(),
+    baseUrl: z.url(),
     timeframe: z.enum(['day', 'hour', 'minute']),
     ohlcvLimit: z.number().int().positive(),
   }),
@@ -33,8 +33,14 @@ export const BotConfigSchema = z.object({
 export type BotConfig = z.infer<typeof BotConfigSchema>;
 
 export function loadConfig(path: string): BotConfig {
-  const raw = fs.readFileSync(path, 'utf-8');
-  const parsed = JSON.parse(raw);
+  // Le fichier est édité à la main : une faute de frappe (virgule en trop, fichier absent) doit
+  // produire un message clair et non une pile d'appels Node brute.
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(path, 'utf-8'));
+  } catch (error) {
+    throw new Error(`Impossible de lire ou parser la config ${path} : ${String(error)}`);
+  }
   const result = BotConfigSchema.safeParse(parsed);
   if (!result.success) {
     throw new Error(`Config invalide dans ${path} : ${result.error.message}`);

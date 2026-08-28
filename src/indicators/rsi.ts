@@ -1,3 +1,7 @@
+// RSI à moyenne mobile simple (parfois appelé « RSI de Cutler »), et non la variante de Wilder
+// à lissage exponentiel qu'affichent la plupart des outils de graphiques : en comparant le RSI
+// journalisé par le bot à celui d'un graphique, attendez-vous à des valeurs différentes — les
+// deux formulations sont valides.
 export function calculateRSI(closes: number[], period: number): number | null {
   if (closes.length < period + 1) return null;
   const recent = closes.slice(closes.length - (period + 1));
