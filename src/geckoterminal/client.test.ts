@@ -228,4 +228,31 @@ describe('GeckoTerminalHttpClient', () => {
       vi.useRealTimers();
     }
   });
+
+  it('stops after a single 429 retry instead of burning the full multi-attempt budget', async () => {
+    vi.useFakeTimers();
+    try {
+      // Un 429 persistant simule un quota déjà épuisé : retenter avec le ladder complet
+      // (jusqu'à 4 requêtes) ne ferait qu'aggraver la fenêtre de rate-limit. On ne doit
+      // tenter qu'un seul nouvel essai, pas les 3 retries accordés aux erreurs génériques.
+      const rateLimited = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: { get: () => null },
+        json: async () => ({}),
+      });
+      vi.stubGlobal('fetch', rateLimited);
+      const client = createGeckoTerminalClient('https://api.geckoterminal.com/api/v2');
+
+      const promise = client.fetchTrendingPools('solana');
+      const assertion = expect(promise).rejects.toThrow(/Échec de la requête/);
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(rateLimited).toHaveBeenCalledTimes(2); // 1 essai initial + 1 seule retentative
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -123,13 +123,17 @@ export function createGeckoTerminalClient(baseUrl: string): GeckoTerminalClient 
 
 // Backoffs de base pour une erreur générique (réseau, 5xx) : 500ms, 1s, 2s.
 const DEFAULT_RETRY_DELAYS_MS = [500, 1000, 2000];
-// Un 429 signifie que le quota est déjà dépassé : retenter aussi vite qu'une erreur générique ne
-// sert à rien, donc on attend plus longtemps par défaut (utilisé seulement si l'API ne renvoie pas
-// d'en-tête Retry-After, qu'on respecte en priorité).
-const RATE_LIMIT_RETRY_DELAYS_MS = [2000, 5000, 10000];
+// Un 429 signifie que le quota est déjà dépassé pour la fenêtre en cours : retenter avec le
+// même ladder qu'une erreur générique (jusqu'à 3 fois) ne fait qu'aggraver le rate-limit en
+// envoyant encore plus de requêtes pendant qu'il est actif. On ne s'autorise donc qu'une seule
+// retentative sur 429 (budget indépendant des retries génériques), avec un délai généreux —
+// respecté en priorité via l'en-tête Retry-After s'il est présent.
+const MAX_RATE_LIMIT_RETRIES = 1;
+const RATE_LIMIT_RETRY_DELAY_MS = 5000;
 
 async function fetchJsonWithRetry(url: string, retries = 3): Promise<any> {
   let lastError: unknown;
+  let rateLimitRetriesUsed = 0;
   for (let attempt = 0; attempt <= retries; attempt++) {
     let response: Response;
     try {
@@ -153,12 +157,17 @@ async function fetchJsonWithRetry(url: string, retries = 3): Promise<any> {
 
     lastError = new Error(`GeckoTerminal API error: ${response.status} ${response.statusText}`);
 
-    if (attempt < retries) {
-      if (response.status === 429) {
-        await sleep(retryAfterMs(response) ?? RATE_LIMIT_RETRY_DELAYS_MS[attempt] ?? 10000);
-      } else {
-        await sleep(DEFAULT_RETRY_DELAYS_MS[attempt] ?? 2000);
+    if (response.status === 429) {
+      if (rateLimitRetriesUsed >= MAX_RATE_LIMIT_RETRIES) {
+        throw new Error(`Échec de la requête GeckoTerminal (429 persistant) : ${String(lastError)}`);
       }
+      rateLimitRetriesUsed += 1;
+      await sleep(retryAfterMs(response) ?? RATE_LIMIT_RETRY_DELAY_MS);
+      continue;
+    }
+
+    if (attempt < retries) {
+      await sleep(DEFAULT_RETRY_DELAYS_MS[attempt] ?? 2000);
     }
   }
   throw new Error(`Échec de la requête GeckoTerminal après ${retries + 1} tentatives : ${String(lastError)}`);
