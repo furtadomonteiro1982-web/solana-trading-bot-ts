@@ -43,6 +43,7 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
     const pools = await scanPools(client, config);
     poolsScanned = pools.length;
     const filterResults = filterPools(pools, config, now);
+    let apiCallsThisCycle = 0;
 
     for (const result of filterResults) {
       try {
@@ -57,6 +58,13 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
           continue;
         }
         poolsPassedFilter += 1;
+
+        // Espace les appels OHLCV entre pools (mais jamais avant le tout premier de ce cycle),
+        // pour ne pas rafaler jusqu'à 20 requêtes en quelques secondes et se faire rate-limiter.
+        if (apiCallsThisCycle > 0) {
+          await sleep(config.geckoTerminal.perPoolDelayMs ?? 0);
+        }
+        apiCallsThisCycle += 1;
 
         const signal = await generateSignal(client, result.pool, config);
         decisionLog.log({
@@ -173,4 +181,8 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
   }
 
   return { poolsScanned, poolsPassedFilter, buySignals, positionsOpened, positionsClosed };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

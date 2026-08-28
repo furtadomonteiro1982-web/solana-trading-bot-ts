@@ -203,4 +203,45 @@ describe('runCycle', () => {
     expect(summary.positionsClosed).toBe(1);
     expect(decisionLog.getRecent(20).some((entry) => entry.stage === 'ERROR')).toBe(true);
   });
+
+  it('waits geckoTerminal.perPoolDelayMs between successive pool API calls within a cycle', async () => {
+    vi.useFakeTimers();
+    try {
+      const pool2: Pool = { ...pool, poolAddress: 'POOL2', baseTokenSymbol: 'BAR' };
+      client.fetchTrendingPools = vi.fn().mockResolvedValue([pool, pool2]);
+      const spacedConfig = {
+        ...config,
+        geckoTerminal: { ...config.geckoTerminal, perPoolDelayMs: 300 },
+      } as BotConfig;
+
+      const promise = runCycle({ client, positionRepo, decisionLog, executor, config: spacedConfig });
+
+      // Le premier pool de la boucle n'attend pas — inutile de retarder le tout premier appel.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(client.fetchOhlcv).toHaveBeenCalledTimes(1);
+
+      // Avant l'écoulement du délai, le second pool n'est pas encore traité.
+      await vi.advanceTimersByTimeAsync(200);
+      expect(client.fetchOhlcv).toHaveBeenCalledTimes(1);
+
+      // Une fois le délai écoulé, le second pool est traité à son tour.
+      await vi.advanceTimersByTimeAsync(150);
+      expect(client.fetchOhlcv).toHaveBeenCalledTimes(2);
+
+      await vi.runAllTimersAsync();
+      await promise;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not delay when geckoTerminal.perPoolDelayMs is absent (existing configs keep working)', async () => {
+    const pool2: Pool = { ...pool, poolAddress: 'POOL2', baseTokenSymbol: 'BAR' };
+    client.fetchTrendingPools = vi.fn().mockResolvedValue([pool, pool2]);
+
+    const summary = await runCycle({ client, positionRepo, decisionLog, executor, config });
+
+    expect(summary.poolsPassedFilter).toBe(2);
+    expect(client.fetchOhlcv).toHaveBeenCalledTimes(2);
+  });
 });

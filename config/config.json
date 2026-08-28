@@ -1,5 +1,5 @@
 {
-  "scanIntervalSeconds": 60,
+  "scanIntervalSeconds": 120,
   "network": "solana",
   "filters": {
     "minLiquidityUsd": 20000,
@@ -23,6 +23,7 @@
   "geckoTerminal": {
     "baseUrl": "https://api.geckoterminal.com/api/v2",
     "timeframe": "hour",
-    "ohlcvLimit": 100
+    "ohlcvLimit": 100,
+    "perPoolDelayMs": 400
   }
 }

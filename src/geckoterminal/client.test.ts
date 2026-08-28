@@ -151,4 +151,81 @@ describe('GeckoTerminalHttpClient', () => {
     await expect(client.fetchTrendingPools('solana')).rejects.toThrow(/Échec de la requête/);
     expect(failingFetch).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
   });
+
+  it('does not retry a 404 — the resource genuinely does not exist', async () => {
+    const notFoundFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+      json: async () => ({}),
+    });
+    vi.stubGlobal('fetch', notFoundFetch);
+    const client = createGeckoTerminalClient('https://api.geckoterminal.com/api/v2');
+
+    const pool = await client.fetchPool('solana', 'INCONNU');
+
+    expect(pool).toBeNull();
+    expect(notFoundFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('honors the Retry-After header when a 429 provides one', async () => {
+    vi.useFakeTimers();
+    try {
+      const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+      const rateLimited = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: { get: (name: string) => (name === 'Retry-After' ? '3' : null) },
+          json: async () => ({}),
+        })
+        .mockResolvedValueOnce({ ok: true, status: 200, statusText: 'OK', json: async () => trendingPoolsResponse });
+      vi.stubGlobal('fetch', rateLimited);
+      const client = createGeckoTerminalClient('https://api.geckoterminal.com/api/v2');
+
+      const promise = client.fetchTrendingPools('solana');
+      await vi.advanceTimersByTimeAsync(0);
+
+      const [, firstDelay] = setTimeoutSpy.mock.calls[0]!;
+      expect(firstDelay).toBe(3000); // Retry-After: 3 -> 3000ms, not the default 500ms
+
+      await vi.runAllTimersAsync();
+      const pools = await promise;
+      expect(pools).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('backs off longer for a 429 than for a generic error when no Retry-After is given', async () => {
+    vi.useFakeTimers();
+    try {
+      const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+      const rateLimited = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: { get: () => null },
+        json: async () => ({}),
+      });
+      vi.stubGlobal('fetch', rateLimited);
+      const client = createGeckoTerminalClient('https://api.geckoterminal.com/api/v2');
+
+      const promise = client.fetchTrendingPools('solana');
+      await vi.advanceTimersByTimeAsync(0);
+
+      const [, firstDelay] = setTimeoutSpy.mock.calls[0]!;
+      expect(firstDelay).toBeGreaterThanOrEqual(2000); // vs. 500ms for a generic error at the same attempt
+
+      // Attach the rejection assertion before advancing timers, so the promise never settles
+      // unobserved (avoids a spurious unhandled-rejection warning from fake-timer flushing).
+      const assertion = expect(promise).rejects.toThrow(/Échec de la requête/);
+      await vi.runAllTimersAsync();
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

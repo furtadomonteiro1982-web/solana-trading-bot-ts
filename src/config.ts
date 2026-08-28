@@ -27,6 +27,9 @@ export const BotConfigSchema = z.object({
     baseUrl: z.url(),
     timeframe: z.enum(['day', 'hour', 'minute']),
     ohlcvLimit: z.number().int().positive(),
+    // Délai entre deux appels API pour des pools différents au sein d'un même cycle, pour rester
+    // sous le quota du plan gratuit au lieu de rafaler tous les appels d'un coup.
+    perPoolDelayMs: z.number().nonnegative().default(400),
   }),
 });
 

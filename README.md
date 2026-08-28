@@ -25,12 +25,22 @@ Le bot tourne en boucle : à chaque cycle il scanne les pools, journalise ses d�
 vérifie les positions ouvertes (stop-loss, take-profit, trailing stop).
 
 Le délai entre deux cycles est réglé par `scanIntervalSeconds` dans `config/config.json`
-(60 = un cycle par minute). Les autres réglages du même fichier contrôlent les filtres
-(`filters`), les indicateurs (`indicators`) et la gestion du risque (`risk` : capital simulé,
-taille de position, nombre max de positions, seuils de sortie).
+(120 par défaut = un cycle toutes les deux minutes). Les autres réglages du même fichier
+contrôlent les filtres (`filters`), les indicateurs (`indicators`) et la gestion du risque
+(`risk` : capital simulé, taille de position, nombre max de positions, seuils de sortie).
+
+**Limite de débit de l'API.** GeckoTerminal (l'API utilisée en gratuit) limite le nombre de
+requêtes par minute. `geckoTerminal.perPoolDelayMs` (400ms par défaut) espace les appels faits
+pour différents pools au sein d'un même cycle, pour éviter de rafaler toutes les requêtes d'un
+coup. Si le bot se fait quand même limiter souvent (visible via des lignes `ERROR` dans
+`decision_logs`, ou `0 pools scannés` dans un cycle), augmentez `scanIntervalSeconds` et/ou
+`perPoolDelayMs` dans `config/config.json`. Une erreur d'API ne fait jamais planter le bot : le
+cycle se termine avec des compteurs à 0 et le suivant reprend normalement.
 
 Pour arrêter le bot : **Ctrl+C**. Le cycle en cours se termine d'abord, puis la base de données
-est refermée proprement — l'arrêt peut donc prendre quelques secondes.
+est refermée proprement. Si l'arrêt arrive pendant l'attente entre deux cycles, il peut prendre
+jusqu'à `scanIntervalSeconds` (l'attente en cours n'est pas interrompue immédiatement) — donc
+jusqu'à deux minutes avec les réglages par défaut, pas juste quelques secondes.
 
 Si `config/config.json` contient une faute de frappe (virgule en trop, accolade manquante),
 le bot s'arrête immédiatement avec un message expliquant le problème.

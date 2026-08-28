@@ -121,23 +121,57 @@ export function createGeckoTerminalClient(baseUrl: string): GeckoTerminalClient 
   return new GeckoTerminalHttpClient(baseUrl);
 }
 
+// Backoffs de base pour une erreur générique (réseau, 5xx) : 500ms, 1s, 2s.
+const DEFAULT_RETRY_DELAYS_MS = [500, 1000, 2000];
+// Un 429 signifie que le quota est déjà dépassé : retenter aussi vite qu'une erreur générique ne
+// sert à rien, donc on attend plus longtemps par défaut (utilisé seulement si l'API ne renvoie pas
+// d'en-tête Retry-After, qu'on respecte en priorité).
+const RATE_LIMIT_RETRY_DELAYS_MS = [2000, 5000, 10000];
+
 async function fetchJsonWithRetry(url: string, retries = 3): Promise<any> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    let response: Response;
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`GeckoTerminal API error: ${response.status} ${response.statusText}`);
-      }
-      return await response.json();
+      response = await fetch(url);
     } catch (error) {
       lastError = error;
       if (attempt < retries) {
-        await sleep(500 * Math.pow(2, attempt));
+        await sleep(DEFAULT_RETRY_DELAYS_MS[attempt] ?? 2000);
+      }
+      continue;
+    }
+
+    if (response.ok) {
+      return await response.json();
+    }
+
+    if (response.status === 404) {
+      // La ressource n'existe pas : inutile de gaspiller des tentatives dessus.
+      throw new Error(`GeckoTerminal API error: 404 Not Found`);
+    }
+
+    lastError = new Error(`GeckoTerminal API error: ${response.status} ${response.statusText}`);
+
+    if (attempt < retries) {
+      if (response.status === 429) {
+        await sleep(retryAfterMs(response) ?? RATE_LIMIT_RETRY_DELAYS_MS[attempt] ?? 10000);
+      } else {
+        await sleep(DEFAULT_RETRY_DELAYS_MS[attempt] ?? 2000);
       }
     }
   }
   throw new Error(`Échec de la requête GeckoTerminal après ${retries + 1} tentatives : ${String(lastError)}`);
+}
+
+/** Lit l'en-tête Retry-After (secondes ou date HTTP) et le convertit en millisecondes. */
+function retryAfterMs(response: Response): number | null {
+  const header = response.headers?.get?.('Retry-After');
+  if (!header) return null;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) return seconds * 1000;
+  const dateMs = Date.parse(header);
+  return Number.isNaN(dateMs) ? null : Math.max(0, dateMs - Date.now());
 }
 
 function sleep(ms: number): Promise<void> {
