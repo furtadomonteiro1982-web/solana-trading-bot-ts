@@ -63,6 +63,23 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
         }
         poolsPassedFilter += 1;
 
+        // Limite le nombre de pools réellement évalués (et donc d'appels API) par cycle,
+        // indépendamment de l'espacement entre appels : les pools au-delà de la limite sont
+        // repris au cycle suivant plutôt que de continuer à consommer le quota du cycle actuel.
+        if (
+          config.maxPoolsPerCycle !== undefined &&
+          apiCallsThisCycle >= config.maxPoolsPerCycle
+        ) {
+          decisionLog.log({
+            timestamp: now,
+            poolAddress: result.pool.poolAddress,
+            stage: 'THROTTLE',
+            decision: 'SKIPPED',
+            reason: `Limite de ${config.maxPoolsPerCycle} pools par cycle atteinte, repris au prochain cycle`,
+          });
+          continue;
+        }
+
         // Espace les appels OHLCV entre pools (mais jamais avant le tout premier de ce cycle),
         // pour ne pas rafaler jusqu'à 20 requêtes en quelques secondes et se faire rate-limiter.
         if (apiCallsThisCycle > 0) {

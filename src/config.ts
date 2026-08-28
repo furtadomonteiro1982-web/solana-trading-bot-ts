@@ -4,6 +4,11 @@ import { z } from 'zod';
 export const BotConfigSchema = z.object({
   scanIntervalSeconds: z.number().positive(),
   network: z.string().min(1),
+  // Nombre max de pools (parmi ceux qui passent le filtre) réellement évalués par cycle — les
+  // autres sont journalisés (THROTTLE) et repris au cycle suivant. Absent = pas de limite (tous
+  // les pools filtrés sont évalués, comportement historique). Réduit la consommation de quota API
+  // par cycle indépendamment de perPoolDelayMs.
+  maxPoolsPerCycle: z.number().int().positive().optional(),
   filters: z.object({
     minLiquidityUsd: z.number().nonnegative(),
     minPoolAgeMinutes: z.number().nonnegative(),

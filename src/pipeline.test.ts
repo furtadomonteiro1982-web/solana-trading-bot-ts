@@ -262,4 +262,31 @@ describe('runCycle', () => {
     expect(summary.poolsPassedFilter).toBe(2);
     expect(client.fetchOhlcv).toHaveBeenCalledTimes(2);
   });
+
+  it('caps the number of pools evaluated per cycle at maxPoolsPerCycle, without calling the API for the rest', async () => {
+    const pool2: Pool = { ...pool, poolAddress: 'POOL2', baseTokenSymbol: 'BAR' };
+    const pool3: Pool = { ...pool, poolAddress: 'POOL3', baseTokenSymbol: 'BAZ' };
+    client.fetchTrendingPools = vi.fn().mockResolvedValue([pool, pool2, pool3]);
+    const cappedConfig = { ...config, maxPoolsPerCycle: 2 } as BotConfig;
+
+    const summary = await runCycle({ client, positionRepo, decisionLog, executor, notifier, config: cappedConfig });
+
+    // Toujours 3 pools retenus par le filtre — seul le nombre traités (appel OHLCV) est limité.
+    expect(summary.poolsPassedFilter).toBe(3);
+    expect(client.fetchOhlcv).toHaveBeenCalledTimes(2);
+    const throttled = decisionLog.getRecent(20).find((entry) => entry.stage === 'THROTTLE');
+    expect(throttled?.poolAddress).toBe('POOL3');
+    expect(throttled?.reason).toMatch(/2 pools/);
+  });
+
+  it('processes every filtered pool when maxPoolsPerCycle is absent (existing configs keep working)', async () => {
+    const pool2: Pool = { ...pool, poolAddress: 'POOL2', baseTokenSymbol: 'BAR' };
+    const pool3: Pool = { ...pool, poolAddress: 'POOL3', baseTokenSymbol: 'BAZ' };
+    client.fetchTrendingPools = vi.fn().mockResolvedValue([pool, pool2, pool3]);
+
+    const summary = await runCycle({ client, positionRepo, decisionLog, executor, notifier, config });
+
+    expect(summary.poolsPassedFilter).toBe(3);
+    expect(client.fetchOhlcv).toHaveBeenCalledTimes(3);
+  });
 });

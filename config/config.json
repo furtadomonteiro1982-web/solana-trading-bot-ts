@@ -1,6 +1,7 @@
 {
   "scanIntervalSeconds": 120,
   "network": "solana",
+  "maxPoolsPerCycle": 5,
   "filters": {
     "minLiquidityUsd": 10000,
     "minPoolAgeMinutes": 60

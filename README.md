@@ -30,12 +30,17 @@ contrôlent les filtres (`filters`), les indicateurs (`indicators`) et la gestio
 (`risk` : capital simulé, taille de position, nombre max de positions, seuils de sortie).
 
 **Limite de débit de l'API.** GeckoTerminal (l'API utilisée en gratuit) limite le nombre de
-requêtes par minute. `geckoTerminal.perPoolDelayMs` (400ms par défaut) espace les appels faits
-pour différents pools au sein d'un même cycle, pour éviter de rafaler toutes les requêtes d'un
-coup. Si le bot se fait quand même limiter souvent (visible via des lignes `ERROR` dans
-`decision_logs`, ou `0 pools scannés` dans un cycle), augmentez `scanIntervalSeconds` et/ou
-`perPoolDelayMs` dans `config/config.json`. Une erreur d'API ne fait jamais planter le bot : le
-cycle se termine avec des compteurs à 0 et le suivant reprend normalement.
+requêtes par minute. Deux réglages dans `config/config.json` limitent la consommation de quota par
+cycle : `geckoTerminal.perPoolDelayMs` (800ms par défaut) espace les appels faits pour différents
+pools au sein d'un même cycle, et `maxPoolsPerCycle` (5 par défaut) plafonne le nombre de pools
+réellement évalués par cycle — les pools filtrés au-delà de cette limite sont journalisés
+(`THROTTLE`) et repris au cycle suivant plutôt que d'être traités tout de suite. Sur un 429, le
+client ne retente qu'une seule fois (en respectant l'en-tête `Retry-After` si présent) au lieu de
+marteler l'API pendant une fenêtre déjà saturée. Si le bot se fait quand même limiter souvent
+(visible via des lignes `ERROR` dans `decision_logs`, ou `0 pools scannés` dans un cycle),
+augmentez `scanIntervalSeconds`, réduisez `maxPoolsPerCycle` et/ou augmentez `perPoolDelayMs`.
+Une erreur d'API ne fait jamais planter le bot : le cycle se termine avec des compteurs à 0 et le
+suivant reprend normalement.
 
 ### Notifications Telegram (facultatif)
 
