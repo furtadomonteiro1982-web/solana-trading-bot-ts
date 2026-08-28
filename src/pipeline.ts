@@ -18,10 +18,18 @@ export interface PipelineDeps {
   positionRepo: PositionRepository;
   decisionLog: DecisionLogRepository;
   firstSeenRepo: FirstSeenRepository;
+  // Ensemble en mémoire (pas persisté) des ids de positions déjà averties : évite de renotifier
+  // à chaque cycle tant que le prix reste dans la zone de danger. Réinitialisé si le bot redémarre
+  // — acceptable pour une simple alerte informative, pas un état métier critique.
+  nearStopLossWarned: Set<number>;
   executor: Executor;
   notifier: Notifier;
   config: BotConfig;
 }
+
+// Seuil d'alerte précoce : avertit quand le prix a parcouru 80% du chemin entre l'entrée et le
+// stop-loss, avant que la clôture automatique (déjà notifiée séparément) ne se déclenche.
+const NEAR_STOP_LOSS_RATIO = 0.8;
 
 export interface CycleSummary {
   poolsScanned: number;
@@ -33,7 +41,7 @@ export interface CycleSummary {
 }
 
 export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
-  const { client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config } = deps;
+  const { client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config } = deps;
   const now = new Date();
 
   let poolsScanned = 0;
@@ -212,6 +220,28 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
     positionsClosed = closedPositions.length;
     for (const position of closedPositions) {
       await notifyPositionClosed(notifier, position);
+      // Une position fermée ne peut plus être "proche" de quoi que ce soit.
+      nearStopLossWarned.delete(position.id);
+    }
+
+    // Alerte précoce sur les positions qui restent ouvertes après la revue ci-dessus : le prix
+    // s'approche du stop-loss sans l'avoir encore atteint.
+    for (const position of positionRepo.getOpenPositions()) {
+      const currentPrice = prices.get(position.poolAddress);
+      if (currentPrice == null) continue;
+      const dangerThreshold =
+        position.entryPriceUsd - NEAR_STOP_LOSS_RATIO * (position.entryPriceUsd - position.stopLossPrice);
+      const inDangerZone = currentPrice <= dangerThreshold && currentPrice > position.stopLossPrice;
+      if (inDangerZone && !nearStopLossWarned.has(position.id)) {
+        nearStopLossWarned.add(position.id);
+        await notifier.notify(
+          `⚠️ Position proche du stop-loss : ${position.baseTokenSymbol} (${position.poolAddress})\n` +
+            `Prix actuel : ${currentPrice}$ — Stop-loss : ${position.stopLossPrice}$ (entrée : ${position.entryPriceUsd}$)`
+        );
+      } else if (!inDangerZone) {
+        // Le prix a récupéré au-dessus du seuil de danger : on pourra réavertir s'il y redescend.
+        nearStopLossWarned.delete(position.id);
+      }
     }
   } catch (error) {
     errors += 1;

@@ -60,6 +60,7 @@ async function main() {
   const positionRepo = new PositionRepository(db);
   const decisionLog = new DecisionLogRepository(db);
   const firstSeenRepo = new FirstSeenRepository(db);
+  const nearStopLossWarned = new Set<number>();
   const executor = new PaperExecutor();
   notifier = createNotifier();
 
@@ -84,6 +85,7 @@ async function main() {
         positionRepo,
         decisionLog,
         firstSeenRepo,
+        nearStopLossWarned,
         executor,
         notifier,
         config,

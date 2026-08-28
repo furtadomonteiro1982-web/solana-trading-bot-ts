@@ -54,6 +54,7 @@ let db: Database.Database;
 let positionRepo: PositionRepository;
 let decisionLog: DecisionLogRepository;
 let firstSeenRepo: FirstSeenRepository;
+let nearStopLossWarned: Set<number>;
 let executor: Executor;
 let executeMock: ReturnType<typeof vi.fn<(order: Order) => Promise<Fill>>>;
 let client: MarketDataClient;
@@ -72,6 +73,7 @@ beforeEach(() => {
   positionRepo = new PositionRepository(db);
   decisionLog = new DecisionLogRepository(db);
   firstSeenRepo = new FirstSeenRepository(db);
+  nearStopLossWarned = new Set<number>();
   seedOldFirstSeen('POOL1');
   executeMock = vi.fn<(order: Order) => Promise<Fill>>().mockImplementation(
     async (order: Order): Promise<Fill> => ({
@@ -96,7 +98,7 @@ beforeEach(() => {
 
 describe('runCycle', () => {
   it('scans, filters, signals, opens a position, and leaves it open', async () => {
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
     expect(summary).toEqual({
       poolsScanned: 1,
@@ -117,7 +119,7 @@ describe('runCycle', () => {
   it('rejects a pool that fails the filter without calling the client for OHLCV', async () => {
     client.fetchTrendingPools = vi.fn().mockResolvedValue([{ ...pool, liquidityUsd: 10 }]);
 
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
     expect(summary.poolsPassedFilter).toBe(0);
     expect(summary.buySignals).toBe(0);
@@ -131,7 +133,7 @@ describe('runCycle', () => {
     const brandNewPool: Pool = { ...pool, poolAddress: 'POOL_NEW' };
     client.fetchTrendingPools = vi.fn().mockResolvedValue([brandNewPool]);
 
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
     expect(summary.poolsPassedFilter).toBe(0);
     expect(
@@ -149,7 +151,7 @@ describe('runCycle', () => {
       filledAt: new Date(),
     }));
 
-    await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
+    await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
     const [position] = positionRepo.getOpenPositions();
     expect(position.entryPriceUsd).toBe(0.95);
@@ -158,13 +160,13 @@ describe('runCycle', () => {
 
   it('does not open a second position on a pool that already has one open', async () => {
     // Premier cycle : la position est ouverte.
-    await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
+    await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
     expect(positionRepo.getOpenPositions()).toHaveLength(1);
     const buyCallsAfterFirstCycle = executeMock.mock.calls.filter((c) => c[0].side === 'BUY').length;
     expect(buyCallsAfterFirstCycle).toBe(1);
 
     // Deuxième cycle : le même signal BUY se reproduit sur le même pool.
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
     expect(summary.buySignals).toBe(1);
     expect(summary.positionsOpened).toBe(0);
@@ -173,6 +175,69 @@ describe('runCycle', () => {
     expect(
       decisionLog.getRecent(20).some((entry) => /Position déjà ouverte/.test(entry.reason))
     ).toBe(true);
+  });
+
+  it('warns once when an open position nears its stop-loss without closing it', async () => {
+    client.fetchTrendingPools = vi.fn().mockResolvedValue([]);
+    positionRepo.openPosition({
+      poolAddress: 'POOL3',
+      baseTokenSymbol: 'BAZ',
+      entryPriceUsd: 1,
+      sizeUsd: 10,
+      stopLossPrice: 0.5,
+      takeProfitPrice: 100,
+      trailingStopPct: 90,
+      openedAt: new Date(),
+    });
+    // Zone de danger : entre le stop-loss (0.5) et 80% du chemin depuis l'entrée (0.6). 0.55 y est.
+    priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['POOL3', 0.55]]));
+
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
+
+    expect(summary.positionsClosed).toBe(0);
+    expect(positionRepo.getOpenPositions()).toHaveLength(1);
+    expect(notifyMock).toHaveBeenCalledWith(expect.stringMatching(/proche du stop-loss.*BAZ/s));
+  });
+
+  it('does not repeat the near-stop-loss warning on a later cycle while still in the danger zone', async () => {
+    client.fetchTrendingPools = vi.fn().mockResolvedValue([]);
+    positionRepo.openPosition({
+      poolAddress: 'POOL3',
+      baseTokenSymbol: 'BAZ',
+      entryPriceUsd: 1,
+      sizeUsd: 10,
+      stopLossPrice: 0.5,
+      takeProfitPrice: 100,
+      trailingStopPct: 90,
+      openedAt: new Date(),
+    });
+    priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['POOL3', 0.55]]));
+
+    await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
+    notifyMock.mockClear();
+    await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
+
+    expect(notifyMock).not.toHaveBeenCalledWith(expect.stringMatching(/proche du stop-loss/));
+  });
+
+  it('does not warn when an open position is not near its stop-loss', async () => {
+    client.fetchTrendingPools = vi.fn().mockResolvedValue([]);
+    positionRepo.openPosition({
+      poolAddress: 'POOL3',
+      baseTokenSymbol: 'BAZ',
+      entryPriceUsd: 1,
+      sizeUsd: 10,
+      stopLossPrice: 0.5,
+      takeProfitPrice: 100,
+      trailingStopPct: 90,
+      openedAt: new Date(),
+    });
+    // Confortablement au-dessus de la zone de danger (< 0.6).
+    priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['POOL3', 0.9]]));
+
+    await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
+
+    expect(notifyMock).not.toHaveBeenCalledWith(expect.stringMatching(/proche du stop-loss/));
   });
 
   it('keeps processing other pools and still reviews open positions when one pool throws', async () => {
@@ -202,7 +267,7 @@ describe('runCycle', () => {
       ])
     );
 
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
     // Le second pool est traité malgré l'échec du premier.
     expect(summary.positionsOpened).toBe(1);
@@ -241,7 +306,7 @@ describe('runCycle', () => {
     });
     priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['POOL3', 1.6]]));
 
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
     expect(summary.poolsScanned).toBe(0);
     expect(summary.positionsClosed).toBe(1);
@@ -271,7 +336,7 @@ describe('runCycle', () => {
     });
     client.fetchTrendingPools = vi.fn().mockResolvedValue([]);
 
-    await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
+    await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
     expect(priceClient.fetchPrices).toHaveBeenCalledTimes(1);
     expect(priceClient.fetchPrices).toHaveBeenCalledWith(expect.arrayContaining(['POOL3', 'POOL4']));
@@ -291,6 +356,7 @@ describe('runCycle', () => {
       positionRepo,
       decisionLog,
       firstSeenRepo,
+      nearStopLossWarned,
       executor,
       notifier,
       config: cappedConfig,
@@ -311,7 +377,7 @@ describe('runCycle', () => {
     seedOldFirstSeen('POOL3');
     client.fetchTrendingPools = vi.fn().mockResolvedValue([pool, pool2, pool3]);
 
-    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, executor, notifier, config });
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
     expect(summary.poolsPassedFilter).toBe(3);
     expect(client.fetchOhlcv).toHaveBeenCalledTimes(3);
