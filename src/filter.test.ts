@@ -35,6 +35,31 @@ describe('filterPools', () => {
     expect(result.reason).toMatch(/Liquidité/);
   });
 
+  it('rejects a pool whose price is not a usable number', () => {
+    const [result] = filterPools([makePool({ priceUsd: NaN })], config, now);
+    expect(result.passed).toBe(false);
+    expect(result.reason).toMatch(/aberrantes|incomplètes/);
+    expect(result.reason).not.toMatch(/Liquidité|âgé/);
+  });
+
+  it('rejects a pool with a zero price', () => {
+    const [result] = filterPools([makePool({ priceUsd: 0 })], config, now);
+    expect(result.passed).toBe(false);
+    expect(result.reason).toMatch(/aberrantes|incomplètes/);
+  });
+
+  it('rejects a pool with a non-finite liquidity', () => {
+    const [result] = filterPools([makePool({ liquidityUsd: NaN })], config, now);
+    expect(result.passed).toBe(false);
+    expect(result.reason).toMatch(/aberrantes|incomplètes/);
+  });
+
+  it('rejects a pool with an unparseable creation date', () => {
+    const [result] = filterPools([makePool({ poolCreatedAt: new Date('pas-une-date') })], config, now);
+    expect(result.passed).toBe(false);
+    expect(result.reason).toMatch(/aberrantes|incomplètes/);
+  });
+
   it('rejects a pool that is too young', () => {
     const [result] = filterPools(
       [makePool({ poolCreatedAt: new Date('2026-08-27T11:30:00.000Z') })], // 30 min before now
