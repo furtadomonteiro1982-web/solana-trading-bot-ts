@@ -7,6 +7,7 @@ import { runCycle } from './pipeline.js';
 import type { GeckoTerminalClient } from './geckoterminal/client.js';
 import type { BotConfig } from './config.js';
 import type { Candle, Executor, Fill, Order, Pool } from './types.js';
+import type { Notifier } from './notifier/notifier.js';
 
 const config = {
   network: 'solana',
@@ -53,6 +54,8 @@ let decisionLog: DecisionLogRepository;
 let executor: Executor;
 let executeMock: ReturnType<typeof vi.fn<(order: Order) => Promise<Fill>>>;
 let client: GeckoTerminalClient;
+let notifier: Notifier;
+let notifyMock: ReturnType<typeof vi.fn<(message: string) => Promise<void>>>;
 
 beforeEach(() => {
   db = createDb(':memory:');
@@ -68,6 +71,8 @@ beforeEach(() => {
     })
   );
   executor = { execute: executeMock };
+  notifyMock = vi.fn<(message: string) => Promise<void>>().mockResolvedValue(undefined);
+  notifier = { notify: notifyMock };
   client = {
     fetchTrendingPools: vi.fn().mockResolvedValue([pool]),
     fetchOhlcv: vi.fn().mockResolvedValue(buyCandles),
@@ -79,7 +84,7 @@ beforeEach(() => {
 
 describe('runCycle', () => {
   it('scans, filters, signals, opens a position, and leaves it open', async () => {
-    const summary = await runCycle({ client, positionRepo, decisionLog, executor, config });
+    const summary = await runCycle({ client, positionRepo, decisionLog, executor, notifier, config });
 
     expect(summary).toEqual({
       poolsScanned: 1,
@@ -87,18 +92,20 @@ describe('runCycle', () => {
       buySignals: 1,
       positionsOpened: 1,
       positionsClosed: 0,
+      errors: 0,
     });
     expect(positionRepo.getOpenPositions()).toHaveLength(1);
     expect(executeMock).toHaveBeenCalledWith(
       expect.objectContaining({ poolAddress: 'POOL1', side: 'BUY', sizeUsd: 100 })
     );
     expect(decisionLog.getRecent(10).length).toBeGreaterThan(0);
+    expect(notifyMock).toHaveBeenCalledWith(expect.stringMatching(/Position ouverte.*FOO/s));
   });
 
   it('rejects a pool that fails the filter without calling the client for OHLCV', async () => {
     client.fetchTrendingPools = vi.fn().mockResolvedValue([{ ...pool, liquidityUsd: 10 }]);
 
-    const summary = await runCycle({ client, positionRepo, decisionLog, executor, config });
+    const summary = await runCycle({ client, positionRepo, decisionLog, executor, notifier, config });
 
     expect(summary.poolsPassedFilter).toBe(0);
     expect(summary.buySignals).toBe(0);
@@ -115,7 +122,7 @@ describe('runCycle', () => {
       filledAt: new Date(),
     }));
 
-    await runCycle({ client, positionRepo, decisionLog, executor, config });
+    await runCycle({ client, positionRepo, decisionLog, executor, notifier, config });
 
     const [position] = positionRepo.getOpenPositions();
     expect(position.entryPriceUsd).toBe(0.95);
@@ -124,13 +131,13 @@ describe('runCycle', () => {
 
   it('does not open a second position on a pool that already has one open', async () => {
     // Premier cycle : la position est ouverte.
-    await runCycle({ client, positionRepo, decisionLog, executor, config });
+    await runCycle({ client, positionRepo, decisionLog, executor, notifier, config });
     expect(positionRepo.getOpenPositions()).toHaveLength(1);
     const buyCallsAfterFirstCycle = executeMock.mock.calls.filter((c) => c[0].side === 'BUY').length;
     expect(buyCallsAfterFirstCycle).toBe(1);
 
     // Deuxième cycle : le même signal BUY se reproduit sur le même pool.
-    const summary = await runCycle({ client, positionRepo, decisionLog, executor, config });
+    const summary = await runCycle({ client, positionRepo, decisionLog, executor, notifier, config });
 
     expect(summary.buySignals).toBe(1);
     expect(summary.positionsOpened).toBe(0);
@@ -162,7 +169,7 @@ describe('runCycle', () => {
     });
     client.fetchPoolPrice = vi.fn().mockResolvedValue(1.6);
 
-    const summary = await runCycle({ client, positionRepo, decisionLog, executor, config });
+    const summary = await runCycle({ client, positionRepo, decisionLog, executor, notifier, config });
 
     // Le second pool est traité malgré l'échec du premier.
     expect(summary.positionsOpened).toBe(1);
@@ -177,10 +184,14 @@ describe('runCycle', () => {
     expect(executeMock).toHaveBeenCalledWith(
       expect.objectContaining({ poolAddress: 'POOL3', side: 'SELL' })
     );
-    // L'erreur est tracée dans le journal des décisions.
+    // L'erreur est tracée dans le journal des décisions et comptée dans le résumé.
     const errorEntry = decisionLog.getRecent(20).find((entry) => entry.stage === 'ERROR');
     expect(errorEntry?.poolAddress).toBe('POOL1');
     expect(errorEntry?.reason).toMatch(/API GeckoTerminal indisponible/);
+    expect(summary.errors).toBe(1);
+    // Une notification de clôture est envoyée pour chaque position fermée, avec la raison et le PnL.
+    expect(notifyMock).toHaveBeenCalledWith(expect.stringMatching(/Position fermée.*BAZ.*TAKE_PROFIT/s));
+    expect(notifyMock).toHaveBeenCalledWith(expect.stringMatching(/Position fermée.*BAR.*TAKE_PROFIT/s));
   });
 
   it('still reviews open positions when the scan itself throws', async () => {
@@ -197,7 +208,7 @@ describe('runCycle', () => {
     });
     client.fetchPoolPrice = vi.fn().mockResolvedValue(1.6);
 
-    const summary = await runCycle({ client, positionRepo, decisionLog, executor, config });
+    const summary = await runCycle({ client, positionRepo, decisionLog, executor, notifier, config });
 
     expect(summary.poolsScanned).toBe(0);
     expect(summary.positionsClosed).toBe(1);
@@ -214,7 +225,14 @@ describe('runCycle', () => {
         geckoTerminal: { ...config.geckoTerminal, perPoolDelayMs: 300 },
       } as BotConfig;
 
-      const promise = runCycle({ client, positionRepo, decisionLog, executor, config: spacedConfig });
+      const promise = runCycle({
+        client,
+        positionRepo,
+        decisionLog,
+        executor,
+        notifier,
+        config: spacedConfig,
+      });
 
       // Le premier pool de la boucle n'attend pas — inutile de retarder le tout premier appel.
       await vi.advanceTimersByTimeAsync(0);
@@ -239,7 +257,7 @@ describe('runCycle', () => {
     const pool2: Pool = { ...pool, poolAddress: 'POOL2', baseTokenSymbol: 'BAR' };
     client.fetchTrendingPools = vi.fn().mockResolvedValue([pool, pool2]);
 
-    const summary = await runCycle({ client, positionRepo, decisionLog, executor, config });
+    const summary = await runCycle({ client, positionRepo, decisionLog, executor, notifier, config });
 
     expect(summary.poolsPassedFilter).toBe(2);
     expect(client.fetchOhlcv).toHaveBeenCalledTimes(2);

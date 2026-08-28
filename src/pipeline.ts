@@ -2,7 +2,8 @@ import type { BotConfig } from './config.js';
 import type { GeckoTerminalClient } from './geckoterminal/client.js';
 import type { PositionRepository } from './store/positionRepository.js';
 import type { DecisionLogRepository } from './store/decisionLogRepository.js';
-import type { Executor } from './types.js';
+import type { Executor, Position } from './types.js';
+import type { Notifier } from './notifier/notifier.js';
 import { scanPools } from './scanner.js';
 import { filterPools } from './filter.js';
 import { generateSignal } from './signal.js';
@@ -14,6 +15,7 @@ export interface PipelineDeps {
   positionRepo: PositionRepository;
   decisionLog: DecisionLogRepository;
   executor: Executor;
+  notifier: Notifier;
   config: BotConfig;
 }
 
@@ -23,10 +25,11 @@ export interface CycleSummary {
   buySignals: number;
   positionsOpened: number;
   positionsClosed: number;
+  errors: number;
 }
 
 export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
-  const { client, positionRepo, decisionLog, executor, config } = deps;
+  const { client, positionRepo, decisionLog, executor, notifier, config } = deps;
   const now = new Date();
 
   let poolsScanned = 0;
@@ -34,6 +37,7 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
   let buySignals = 0;
   let positionsOpened = 0;
   let positionsClosed = 0;
+  let errors = 0;
 
   // La phase "scan et achat" et la revue des positions ouvertes sont isolées l'une de l'autre :
   // une erreur d'API pendant le scan ne doit jamais empêcher la vérification des stop-loss /
@@ -142,7 +146,12 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
           openedAt: now,
         });
         positionsOpened += 1;
+        await notifier.notify(
+          `🟢 Position ouverte : ${result.pool.baseTokenSymbol} (${result.pool.poolAddress})\n` +
+            `Entrée : ${fill.filledPriceUsd}$ — Taille : ${risk.positionSizeUsd.toFixed(2)}$`
+        );
       } catch (error) {
+        errors += 1;
         decisionLog.log({
           timestamp: now,
           poolAddress: result.pool.poolAddress,
@@ -154,6 +163,7 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
       }
     }
   } catch (error) {
+    errors += 1;
     decisionLog.log({
       timestamp: now,
       poolAddress: '-',
@@ -164,13 +174,18 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
   }
 
   try {
-    positionsClosed = await reviewOpenPositions(
+    const closedPositions = await reviewOpenPositions(
       positionRepo,
       (poolAddress) => client.fetchPoolPrice(config.network, poolAddress),
       executor,
       now
     );
+    positionsClosed = closedPositions.length;
+    for (const position of closedPositions) {
+      await notifyPositionClosed(notifier, position);
+    }
   } catch (error) {
+    errors += 1;
     decisionLog.log({
       timestamp: now,
       poolAddress: '-',
@@ -180,7 +195,16 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
     });
   }
 
-  return { poolsScanned, poolsPassedFilter, buySignals, positionsOpened, positionsClosed };
+  return { poolsScanned, poolsPassedFilter, buySignals, positionsOpened, positionsClosed, errors };
+}
+
+async function notifyPositionClosed(notifier: Notifier, position: Position): Promise<void> {
+  const pnl = position.pnlUsd ?? 0;
+  const sign = pnl >= 0 ? '+' : '';
+  await notifier.notify(
+    `🔴 Position fermée : ${position.baseTokenSymbol} (${position.poolAddress})\n` +
+      `Raison : ${position.closeReason} — PnL : ${sign}${pnl.toFixed(2)}$`
+  );
 }
 
 function sleep(ms: number): Promise<void> {

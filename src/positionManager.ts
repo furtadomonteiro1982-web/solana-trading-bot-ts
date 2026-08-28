@@ -1,4 +1,4 @@
-import type { Executor } from './types.js';
+import type { Executor, Position } from './types.js';
 import type { PositionRepository } from './store/positionRepository.js';
 
 export type PriceLookup = (poolAddress: string) => Promise<number | null>;
@@ -8,9 +8,9 @@ export async function reviewOpenPositions(
   priceLookup: PriceLookup,
   executor: Executor,
   now: Date = new Date()
-): Promise<number> {
+): Promise<Position[]> {
   const openPositions = positionRepo.getOpenPositions();
-  let closedCount = 0;
+  const closedPositions: Position[] = [];
 
   for (const position of openPositions) {
     const currentPrice = await priceLookup(position.poolAddress);
@@ -43,10 +43,10 @@ export async function reviewOpenPositions(
         sizeUsd: position.sizeUsd,
         priceUsd: currentPrice,
       });
-      positionRepo.closePosition(position.id, fill.filledPriceUsd, closeReason, now);
-      closedCount += 1;
+      const closed = positionRepo.closePosition(position.id, fill.filledPriceUsd, closeReason, now);
+      closedPositions.push(closed);
     }
   }
 
-  return closedCount;
+  return closedPositions;
 }

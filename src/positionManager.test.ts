@@ -41,9 +41,15 @@ function openTestPosition() {
 describe('reviewOpenPositions', () => {
   it('closes a position that reached take-profit', async () => {
     openTestPosition();
-    const closedCount = await reviewOpenPositions(repo, async () => 1.6, executor);
+    const closed = await reviewOpenPositions(repo, async () => 1.6, executor);
 
-    expect(closedCount).toBe(1);
+    expect(closed).toHaveLength(1);
+    expect(closed[0]).toMatchObject({
+      poolAddress: 'POOL1',
+      closeReason: 'TAKE_PROFIT',
+      closePriceUsd: 1.6,
+    });
+    expect(closed[0].pnlUsd).toBeCloseTo(6, 5); // (1.6-1)/1 * 10
     expect(repo.getOpenPositions()).toHaveLength(0);
     expect(executeMock).toHaveBeenCalledWith(
       expect.objectContaining({ poolAddress: 'POOL1', side: 'SELL' })
@@ -52,17 +58,18 @@ describe('reviewOpenPositions', () => {
 
   it('closes a position that hit stop-loss', async () => {
     openTestPosition();
-    const closedCount = await reviewOpenPositions(repo, async () => 0.7, executor);
+    const closed = await reviewOpenPositions(repo, async () => 0.7, executor);
 
-    expect(closedCount).toBe(1);
+    expect(closed).toHaveLength(1);
+    expect(closed[0].closeReason).toBe('STOP_LOSS');
     expect(repo.getOpenPositions()[0]).toBeUndefined();
   });
 
   it('leaves a position open when price is between stop-loss and take-profit', async () => {
     openTestPosition();
-    const closedCount = await reviewOpenPositions(repo, async () => 1.1, executor);
+    const closed = await reviewOpenPositions(repo, async () => 1.1, executor);
 
-    expect(closedCount).toBe(0);
+    expect(closed).toHaveLength(0);
     expect(repo.getOpenPositions()).toHaveLength(1);
     expect(executeMock).not.toHaveBeenCalled();
   });
@@ -73,17 +80,17 @@ describe('reviewOpenPositions', () => {
     await reviewOpenPositions(repo, async () => 1.3, executor);
     expect(repo.getById(position.id)!.highestPriceUsd).toBe(1.3);
 
-    const closedCount = await reviewOpenPositions(repo, async () => 1.1, executor);
+    const closed = await reviewOpenPositions(repo, async () => 1.1, executor);
 
-    expect(closedCount).toBe(1);
-    expect(repo.getById(position.id)!.closeReason).toBe('TRAILING_STOP');
+    expect(closed).toHaveLength(1);
+    expect(closed[0].closeReason).toBe('TRAILING_STOP');
   });
 
   it('skips a position when the price lookup returns null', async () => {
     openTestPosition();
-    const closedCount = await reviewOpenPositions(repo, async () => null, executor);
+    const closed = await reviewOpenPositions(repo, async () => null, executor);
 
-    expect(closedCount).toBe(0);
+    expect(closed).toHaveLength(0);
     expect(repo.getOpenPositions()).toHaveLength(1);
   });
 });

@@ -2,15 +2,15 @@
   "scanIntervalSeconds": 120,
   "network": "solana",
   "filters": {
-    "minLiquidityUsd": 20000,
+    "minLiquidityUsd": 10000,
     "minPoolAgeMinutes": 60
   },
   "indicators": {
     "rsiPeriod": 14,
-    "rsiOversold": 35,
+    "rsiOversold": 50,
     "smaPeriod": 20,
     "momentumLookbackCandles": 6,
-    "momentumMinPct": 3
+    "momentumMinPct": 1
   },
   "risk": {
     "simulatedCapitalUsd": 100,

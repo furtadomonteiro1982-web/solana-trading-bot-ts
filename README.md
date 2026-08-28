@@ -37,6 +37,24 @@ coup. Si le bot se fait quand même limiter souvent (visible via des lignes `ERR
 `perPoolDelayMs` dans `config/config.json`. Une erreur d'API ne fait jamais planter le bot : le
 cycle se termine avec des compteurs à 0 et le suivant reprend normalement.
 
+### Notifications Telegram (facultatif)
+
+Le bot peut vous avertir sur Telegram à l'ouverture d'une position, à sa clôture (avec le PnL) et
+si des erreurs persistent sur plusieurs cycles d'affilée. Sans configuration, il fonctionne
+normalement sans rien envoyer.
+
+1. Parlez à [@BotFather](https://t.me/BotFather) sur Telegram, envoyez `/newbot` et suivez les
+   instructions — il vous donne un **token** (`TELEGRAM_BOT_TOKEN`).
+2. Envoyez n'importe quel message à votre nouveau bot (obligatoire pour l'étape suivante).
+3. Ouvrez `https://api.telegram.org/bot<TOKEN>/getUpdates` dans un navigateur (remplacez
+   `<TOKEN>` par le vôtre) — le champ `chat.id` de la réponse est votre **`TELEGRAM_CHAT_ID`**.
+4. Copiez `.env.example` en `.env` et renseignez les deux valeurs :
+   ```bash
+   cp .env.example .env
+   ```
+5. Relancez `npm start` — le message "Notifications Telegram activées." confirme que c'est pris
+   en compte.
+
 Pour arrêter le bot : **Ctrl+C**. Le cycle en cours se termine d'abord, puis la base de données
 est refermée proprement. Si l'arrêt arrive pendant l'attente entre deux cycles, il peut prendre
 jusqu'à `scanIntervalSeconds` (l'attente en cours n'est pas interrompue immédiatement) — donc
