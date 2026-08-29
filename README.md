@@ -15,6 +15,9 @@ Il faut Node.js (version 20 ou plus récente) installé sur la machine.
 npm install
 ```
 
+Pour faire tourner le bot en continu sur un serveur (VPS) plutôt que sur votre machine, voir
+[DEPLOY.md](./DEPLOY.md).
+
 ## Sources de données
 
 Le bot utilise trois APIs :
