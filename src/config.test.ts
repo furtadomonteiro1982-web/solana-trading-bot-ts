@@ -14,6 +14,8 @@ function writeTempConfig(content: unknown): string {
 const validConfig = {
   scanIntervalSeconds: 60,
   network: 'solana',
+  timeframe: 'hour',
+  ohlcvLimit: 100,
   filters: { minLiquidityUsd: 20000, minPoolAgeMinutes: 60 },
   indicators: {
     rsiPeriod: 14,
@@ -30,10 +32,11 @@ const validConfig = {
     takeProfitPct: 50,
     trailingStopPct: 15,
   },
+  geckoTerminal: {
+    baseUrl: 'https://api.geckoterminal.com/api/v2',
+  },
   birdeye: {
     baseUrl: 'https://public-api.birdeye.so',
-    timeframe: 'hour',
-    ohlcvLimit: 100,
   },
   jupiter: {
     baseUrl: 'https://lite-api.jup.ag',

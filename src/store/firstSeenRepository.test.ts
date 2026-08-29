@@ -30,6 +30,16 @@ describe('FirstSeenRepository', () => {
     expect(firstSeenAt).toEqual(firstCycle);
   });
 
+  it('adopts an earlier candidate date when one arrives later (e.g. a fallback provider recovers with the real, older creation date)', () => {
+    const placeholderNow = new Date('2026-08-29T02:00:00.000Z');
+    const realOlderDate = new Date('2026-08-26T00:00:00.000Z');
+    repo.getOrRecordFirstSeen('POOL1', placeholderNow);
+
+    const firstSeenAt = repo.getOrRecordFirstSeen('POOL1', realOlderDate);
+
+    expect(firstSeenAt).toEqual(realOlderDate);
+  });
+
   it('tracks each pool address independently', () => {
     const now = new Date('2026-08-29T00:00:00.000Z');
     repo.getOrRecordFirstSeen('POOL1', now);

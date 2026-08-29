@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { evaluateSignal, generateSignal } from './signal.js';
-import type { MarketDataClient } from './birdeye/client.js';
+import type { MarketDataClient } from './marketdata/client.js';
 import type { BotConfig } from './config.js';
 import type { Candle, Pool } from './types.js';
 
 const config = {
   network: 'solana',
+  timeframe: 'hour',
+  ohlcvLimit: 100,
   indicators: {
     rsiPeriod: 2,
     rsiOversold: 50,
@@ -13,7 +15,6 @@ const config = {
     momentumLookbackCandles: 1,
     momentumMinPct: 0,
   },
-  birdeye: { baseUrl: 'x', timeframe: 'hour', ohlcvLimit: 100 },
 } as BotConfig;
 
 const pool: Pool = {

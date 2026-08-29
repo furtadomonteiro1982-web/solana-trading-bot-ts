@@ -9,6 +9,10 @@ export const BotConfigSchema = z.object({
   // les pools filtrés sont évalués, comportement historique). Réduit la consommation de quota API
   // par cycle indépendamment de perPoolDelayMs.
   maxPoolsPerCycle: z.number().int().positive().optional(),
+  // Partagé entre GeckoTerminal et Birdeye (même domaine, deux fournisseurs) : pas de raison de
+  // dupliquer ce réglage par fournisseur alors que le pipeline demande toujours la même chose.
+  timeframe: z.enum(['day', 'hour', 'minute']),
+  ohlcvLimit: z.number().int().positive(),
   filters: z.object({
     minLiquidityUsd: z.number().nonnegative(),
     minPoolAgeMinutes: z.number().nonnegative(),
@@ -28,12 +32,16 @@ export const BotConfigSchema = z.object({
     takeProfitPct: z.number().positive(),
     trailingStopPct: z.number().positive().max(100),
   }),
+  // Source principale : gratuite, sans clé API, pas de plafond mensuel (juste une limite de
+  // débit qui se régénère en continu).
+  geckoTerminal: z.object({
+    baseUrl: z.url(),
+    minIntervalMs: z.number().nonnegative().default(1100),
+  }),
+  // Secours automatique si GeckoTerminal échoue (voir MarketDataClient.createFallbackClient) —
+  // nécessite une clé API et un quota mensuel en Compute Units, donc utilisé seulement en repli.
   birdeye: z.object({
     baseUrl: z.url(),
-    timeframe: z.enum(['day', 'hour', 'minute']),
-    ohlcvLimit: z.number().int().positive(),
-    // Espacement minimum entre deux requêtes Birdeye (tous endpoints confondus), pour respecter
-    // la limite de 1 requête/seconde du plan gratuit.
     minIntervalMs: z.number().nonnegative().default(1100),
   }),
   jupiter: z.object({

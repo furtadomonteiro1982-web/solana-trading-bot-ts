@@ -1,16 +1,5 @@
+import type { MarketDataClient } from '../marketdata/client.js';
 import type { Candle, Pool } from '../types.js';
-
-export interface MarketDataClient {
-  fetchTrendingPools(network: string): Promise<Pool[]>;
-  fetchOhlcv(
-    network: string,
-    poolAddress: string,
-    timeframe: 'day' | 'hour' | 'minute',
-    limit: number
-  ): Promise<Candle[]>;
-  /** Récupère n'importe quel token par son adresse (pas seulement les tokens trending). */
-  fetchPool(network: string, poolAddress: string): Promise<Pool | null>;
-}
 
 interface RawTrendingToken {
   address: string;

@@ -2,6 +2,8 @@
   "scanIntervalSeconds": 120,
   "network": "solana",
   "maxPoolsPerCycle": 5,
+  "timeframe": "hour",
+  "ohlcvLimit": 100,
   "filters": {
     "minLiquidityUsd": 10000,
     "minPoolAgeMinutes": 60
@@ -21,10 +23,12 @@
     "takeProfitPct": 50,
     "trailingStopPct": 15
   },
+  "geckoTerminal": {
+    "baseUrl": "https://api.geckoterminal.com/api/v2",
+    "minIntervalMs": 1100
+  },
   "birdeye": {
     "baseUrl": "https://public-api.birdeye.so",
-    "timeframe": "hour",
-    "ohlcvLimit": 100,
     "minIntervalMs": 1100
   },
   "jupiter": {

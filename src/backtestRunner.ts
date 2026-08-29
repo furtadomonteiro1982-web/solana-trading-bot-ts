@@ -1,54 +1,65 @@
 import fs from 'node:fs';
 import { loadConfig } from './config.js';
+import { createGeckoTerminalClient } from './geckoterminal/client.js';
 import { createBirdeyeClient } from './birdeye/client.js';
+import { createFallbackClient, type MarketDataClient } from './marketdata/client.js';
 import { runBacktest } from './backtest.js';
 
 async function main() {
   if (fs.existsSync('.env')) {
     process.loadEnvFile('.env');
   }
-  const birdeyeApiKey = process.env.BIRDEYE_API_KEY;
-  if (!birdeyeApiKey) {
-    console.error(
-      "Erreur : BIRDEYE_API_KEY absent de .env. Créez une clé gratuite sur https://birdeye.so et ajoutez-la à .env (voir .env.example)."
-    );
-    process.exit(1);
-  }
 
   const config = loadConfig('config/config.json');
-  const client = createBirdeyeClient(config.birdeye.baseUrl, birdeyeApiKey, config.birdeye.minIntervalMs);
+  const geckoTerminalClient = createGeckoTerminalClient(
+    config.geckoTerminal.baseUrl,
+    config.geckoTerminal.minIntervalMs
+  );
+
+  // Contrairement au bot en direct, GeckoTerminal seul suffit ici (gratuit, sans clé) : Birdeye
+  // n'est qu'un secours optionnel si vous en avez déjà une.
+  const birdeyeApiKey = process.env.BIRDEYE_API_KEY;
+  let client: MarketDataClient = geckoTerminalClient;
+  if (birdeyeApiKey) {
+    const birdeyeClient = createBirdeyeClient(
+      config.birdeye.baseUrl,
+      birdeyeApiKey,
+      config.birdeye.minIntervalMs
+    );
+    client = createFallbackClient(geckoTerminalClient, birdeyeClient);
+  } else {
+    console.log(
+      'BIRDEYE_API_KEY absent de .env : pas de secours si GeckoTerminal échoue (facultatif, voir .env.example).'
+    );
+  }
+
   const poolAddress = process.argv[2];
 
   if (!poolAddress) {
     console.error('Usage : npm run backtest -- <poolAddress>');
-    console.error("Trouvez l'adresse d'un token sur https://birdeye.so/?chain=solana ou https://dexscreener.com/solana");
+    console.error('Trouvez une poolAddress sur https://www.geckoterminal.com/solana ou https://dexscreener.com/solana');
     process.exit(1);
   }
 
   const pool = await client.fetchPool(config.network, poolAddress);
   if (!pool) {
-    console.error(`Token ${poolAddress} introuvable sur le réseau ${config.network}.`);
-    console.error("Vérifiez l'adresse du token (mint Solana) et votre connexion réseau.");
+    console.error(`Pool ${poolAddress} introuvable sur le réseau ${config.network}.`);
+    console.error("Vérifiez l'adresse du pool et votre connexion réseau.");
     process.exit(1);
   }
 
-  const candleLimit = Math.max(config.birdeye.ohlcvLimit, 500);
-  if (candleLimit > config.birdeye.ohlcvLimit) {
+  const candleLimit = Math.max(config.ohlcvLimit, 500);
+  if (candleLimit > config.ohlcvLimit) {
     console.log(
       `Récupération de ${candleLimit} bougies pour le backtest ` +
-        `(plus que les ${config.birdeye.ohlcvLimit} configurées pour le scan en direct, ` +
+        `(plus que les ${config.ohlcvLimit} configurées pour le scan en direct, ` +
         `afin d'avoir assez d'historique).`
     );
   } else {
     console.log(`Récupération de ${candleLimit} bougies pour le backtest.`);
   }
 
-  const candles = await client.fetchOhlcv(
-    config.network,
-    poolAddress,
-    config.birdeye.timeframe,
-    candleLimit
-  );
+  const candles = await client.fetchOhlcv(config.network, poolAddress, config.timeframe, candleLimit);
 
   const report = runBacktest(pool, candles, config);
 

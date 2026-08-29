@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { scanPools } from './scanner.js';
-import type { MarketDataClient } from './birdeye/client.js';
+import type { MarketDataClient } from './marketdata/client.js';
 import type { BotConfig } from './config.js';
 import type { Pool } from './types.js';
 

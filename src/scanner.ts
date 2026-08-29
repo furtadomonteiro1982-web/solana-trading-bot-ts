@@ -1,5 +1,5 @@
 import type { BotConfig } from './config.js';
-import type { MarketDataClient } from './birdeye/client.js';
+import type { MarketDataClient } from './marketdata/client.js';
 import type { Pool } from './types.js';
 
 export async function scanPools(client: MarketDataClient, config: BotConfig): Promise<Pool[]> {

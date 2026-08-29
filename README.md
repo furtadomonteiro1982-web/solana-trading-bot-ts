@@ -17,20 +17,26 @@ npm install
 
 ## Sources de données
 
-Le bot utilise deux APIs :
+Le bot utilise trois APIs :
 
-- **[Birdeye](https://birdeye.so)** pour le scanner (tokens trending), l'historique OHLCV et le
-  backtest. **Nécessite une clé API gratuite** :
+- **[GeckoTerminal](https://www.geckoterminal.com/)** — source principale pour le scanner (pools
+  trending), l'historique OHLCV et le backtest. **Gratuite, sans clé API, pas de quota mensuel**
+  (juste une limite de débit qui se régénère en continu). Rien à configurer.
+- **[Birdeye](https://birdeye.so)** — secours automatique : si GeckoTerminal échoue (panne, limite
+  de débit persistante), le bot bascule dessus pour l'appel concerné, le temps que GeckoTerminal
+  se rétablisse. **Facultatif.** Pour l'activer :
   1. Créez un compte sur [birdeye.so](https://birdeye.so), puis générez une clé dans l'onglet
      "Security" du tableau de bord.
   2. Copiez `.env.example` en `.env` et renseignez `BIRDEYE_API_KEY` :
      ```bash
      cp .env.example .env
      ```
-  3. Sans cette clé, le bot refuse de démarrer (`npm start` et `npm run backtest` affichent un
-     message clair).
-- **[Jupiter Price API](https://station.jup.ag)** pour le prix des positions ouvertes — gratuite,
-  sans clé, un seul appel par cycle pour toutes les positions à la fois.
+  3. Sans cette clé, le bot fonctionne quand même — juste sans filet de sécurité si GeckoTerminal
+     tombe en panne. Le plan gratuit Birdeye a un quota mensuel de 30 000 Compute Units, donc même
+     activé, il n'est utile que pour dépanner ponctuellement, pas pour remplacer GeckoTerminal en
+     continu.
+- **[Jupiter Price API](https://station.jup.ag)** — prix des positions ouvertes, gratuite, sans
+  clé, un seul appel par cycle pour toutes les positions à la fois.
 
 ## Lancer le bot en direct
 
@@ -46,19 +52,18 @@ Le délai entre deux cycles est réglé par `scanIntervalSeconds` dans `config/c
 contrôlent les filtres (`filters`), les indicateurs (`indicators`) et la gestion du risque
 (`risk` : capital simulé, taille de position, nombre max de positions, seuils de sortie).
 
-**Limite de débit de l'API.** Le plan gratuit Birdeye limite à 1 requête/seconde et 30 000
-Compute Units (CU). Trois réglages limitent la consommation de quota par cycle :
-`birdeye.minIntervalMs` (1100ms par défaut) espace toutes les requêtes Birdeye (le client
-attend automatiquement, pas besoin de délai côté pipeline), `maxPoolsPerCycle` (5 par défaut)
-plafonne le nombre de pools réellement évalués par cycle — les pools filtrés au-delà de cette
-limite sont journalisés (`THROTTLE`) et repris au cycle suivant — et la date de création de
-chaque token (40 CU par adresse) n'est récupérée qu'une seule fois par token pour la durée de vie
-du processus, jamais à chaque cycle. Sur un 429, le client ne retente qu'une seule fois (en
-respectant l'en-tête `Retry-After` si présent) au lieu de marteler l'API pendant une fenêtre déjà
-saturée. Si le bot se fait quand même limiter souvent (visible via des lignes `ERROR` dans
-`decision_logs`, ou `0 pools scannés` dans un cycle), augmentez `scanIntervalSeconds`, réduisez
-`maxPoolsPerCycle` et/ou augmentez `birdeye.minIntervalMs`. Une erreur d'API ne fait jamais
-planter le bot : le cycle se termine avec des compteurs à 0 et le suivant reprend normalement.
+**Limite de débit de l'API.** `geckoTerminal.minIntervalMs` (1100ms par défaut) espace toutes les
+requêtes vers la source principale (le client attend automatiquement, pas besoin de délai côté
+pipeline) ; `birdeye.minIntervalMs` fait de même pour le secours, dont le plan gratuit est limité
+à 1 requête/seconde et 30 000 Compute Units par mois. `maxPoolsPerCycle` (5 par défaut) plafonne
+le nombre de pools réellement évalués par cycle — les pools filtrés au-delà de cette limite sont
+journalisés (`THROTTLE`) et repris au cycle suivant. Sur un 429, le client ne retente qu'une seule
+fois (en respectant l'en-tête `Retry-After` si présent) au lieu de marteler l'API pendant une
+fenêtre déjà saturée ; sur un 400/401/403 (requête invalide, quota épuisé, clé non autorisée), il
+n'insiste pas du tout, ces erreurs ne se résolvant jamais toutes seules. Si GeckoTerminal échoue,
+le bot bascule sur Birdeye pour l'appel concerné (`console.warn` visible dans les logs) ; si les
+deux échouent, l'erreur est journalisée (`ERROR` dans `decision_logs`) mais ne fait jamais planter
+le bot — le cycle se termine avec des compteurs à 0 et le suivant reprend normalement.
 
 ### Notifications Telegram (facultatif)
 
@@ -89,17 +94,17 @@ le bot s'arrête immédiatement avec un message expliquant le problème.
 ## Tester une stratégie sur l'historique (backtest)
 
 ```bash
-npm run backtest -- <adresse du token>
+npm run backtest -- <poolAddress>
 ```
 
-L'adresse à fournir est celle du **token** (mint Solana), pas celle d'un pool spécifique — Birdeye
-travaille au niveau du token. Pour la trouver : ouvrez une page token sur
-[Birdeye](https://birdeye.so/?chain=solana) ou [DexScreener](https://dexscreener.com/solana),
-l'adresse apparaît dans l'URL et sur la fiche. N'importe quel token Solana fonctionne, pas
-seulement ceux qui sont trending en ce moment.
+L'adresse à fournir est celle du **pool** (pas celle du token) — GeckoTerminal travaille au niveau
+du pool. Pour la trouver : ouvrez une paire sur
+[GeckoTerminal](https://www.geckoterminal.com/solana) ou [DexScreener](https://dexscreener.com/solana),
+l'adresse du pool apparaît dans l'URL de la page et sur la fiche de la paire. N'importe quel pool
+Solana fonctionne, pas seulement ceux qui sont trending en ce moment.
 
 Si l'adresse est introuvable, le bot le signale et s'arrête — vérifiez alors que vous avez bien
-copié l'adresse du token et votre connexion réseau.
+copié l'adresse du pool et non celle du token.
 
 Le backtest rejoue la stratégie sur les bougies passées et affiche le nombre de trades, le taux
 de réussite et le PnL simulé. Les résultats sont une **approximation** : l'entrée se fait à la
@@ -120,13 +125,14 @@ Tout est dans une base SQLite locale : `data/bot.sqlite`. Trois tables :
   d'approximation à l'âge réel du pool (voir la limite ci-dessous) et persiste entre les
   redémarrages.
 
-**Limite connue : l'âge des pools est approximatif.** Birdeye ne donne la vraie date de création
-d'un token que sur un plan payant (`token_creation_info` renvoie 401 sur le plan gratuit). Le
-filtre `minPoolAgeMinutes` mesure donc en réalité *depuis combien de temps ce bot suit ce token*
-(table `first_seen`), pas son âge réel on-chain. Un token déjà ancien mais jamais croisé par le
-bot sera traité comme tout juste créé la première fois qu'il apparaît dans le scan — le
-garde-fou anti-rug-pull est donc plus conservateur qu'avec la vraie date de création, pas moins
-protecteur.
+**À propos de l'âge des pools.** GeckoTerminal (source principale) fournit la vraie date de
+création on-chain, utilisée directement. Si le secours Birdeye prend le relais pour un pool
+(panne GeckoTerminal), sa vraie date de création n'est pas disponible sur le plan gratuit
+(`token_creation_info` renvoie 401) : le filtre `minPoolAgeMinutes` retombe alors sur *depuis
+combien de temps ce bot suit ce pool* (table `first_seen`) — un pool déjà ancien mais jamais
+croisé par le bot serait traité comme tout juste créé la première fois qu'il apparaît dans le
+scan. C'est plus conservateur que la vraie date, jamais moins protecteur pour le garde-fou
+anti-rug-pull. Dès que GeckoTerminal répond à nouveau pour ce pool, sa vraie date prend le relais.
 
 Le fichier se lit avec n'importe quel outil SQLite (par exemple
 [DB Browser for SQLite](https://sqlitebrowser.org/)).

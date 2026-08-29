@@ -1,5 +1,5 @@
 import type { BotConfig } from './config.js';
-import type { MarketDataClient } from './birdeye/client.js';
+import type { MarketDataClient } from './marketdata/client.js';
 import type { Candle, Pool, Signal } from './types.js';
 import { calculateRSI } from './indicators/rsi.js';
 import { calculateSMA } from './indicators/sma.js';
@@ -51,8 +51,8 @@ export async function generateSignal(
   const candles = await client.fetchOhlcv(
     config.network,
     pool.poolAddress,
-    config.birdeye.timeframe,
-    config.birdeye.ohlcvLimit
+    config.timeframe,
+    config.ohlcvLimit
   );
   return evaluateSignal(pool, candles, config);
 }

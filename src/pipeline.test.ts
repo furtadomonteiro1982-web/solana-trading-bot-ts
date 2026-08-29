@@ -5,7 +5,7 @@ import { PositionRepository } from './store/positionRepository.js';
 import { DecisionLogRepository } from './store/decisionLogRepository.js';
 import { FirstSeenRepository } from './store/firstSeenRepository.js';
 import { runCycle } from './pipeline.js';
-import type { MarketDataClient } from './birdeye/client.js';
+import type { MarketDataClient } from './marketdata/client.js';
 import type { PriceClient } from './jupiter/priceClient.js';
 import type { BotConfig } from './config.js';
 import type { Candle, Executor, Fill, Order, Pool } from './types.js';
@@ -13,6 +13,8 @@ import type { Notifier } from './notifier/notifier.js';
 
 const config = {
   network: 'solana',
+  timeframe: 'hour',
+  ohlcvLimit: 100,
   filters: { minLiquidityUsd: 1000, minPoolAgeMinutes: 60 },
   indicators: {
     rsiPeriod: 2,
@@ -29,7 +31,6 @@ const config = {
     takeProfitPct: 10,
     trailingStopPct: 50,
   },
-  birdeye: { baseUrl: 'x', timeframe: 'hour', ohlcvLimit: 100 },
 } as BotConfig;
 
 const pool: Pool = {
@@ -127,10 +128,10 @@ describe('runCycle', () => {
   });
 
   it('rejects a pool never seen before as too young, then accepts it once enough real time has passed', async () => {
-    // Birdeye ne fournit plus poolCreatedAt (401 hors plan gratuit sur token_creation_info) : le
-    // pipeline le déduit de FirstSeenRepository. Un pool jamais vu doit donc être traité comme
-    // âgé de 0 minute, pas comme s'il passait automatiquement le filtre.
-    const brandNewPool: Pool = { ...pool, poolAddress: 'POOL_NEW' };
+    // Simule le cas Birdeye (secours) : pas de vraie date de création, le client renvoie "vu à
+    // l'instant". Le pipeline doit alors s'appuyer sur FirstSeenRepository plutôt que de faire
+    // passer le filtre automatiquement à un token jamais vu avant.
+    const brandNewPool: Pool = { ...pool, poolAddress: 'POOL_NEW', poolCreatedAt: new Date() };
     client.fetchTrendingPools = vi.fn().mockResolvedValue([brandNewPool]);
 
     const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
@@ -139,6 +140,22 @@ describe('runCycle', () => {
     expect(
       decisionLog.getRecent(20).some((entry) => /min < minimum 60 min/.test(entry.reason))
     ).toBe(true);
+  });
+
+  it('honors a real creation date from the client immediately, without waiting on FirstSeenRepository', async () => {
+    // Simule le cas GeckoTerminal (source principale) : une vraie date de création est déjà
+    // fournie. Un pool jamais vu par ce bot avant, mais réellement vieux, doit passer le filtre
+    // dès la première détection — pas seulement après une heure de suivi local.
+    const genuinelyOldPool: Pool = {
+      ...pool,
+      poolAddress: 'POOL_REAL_AGE',
+      poolCreatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    };
+    client.fetchTrendingPools = vi.fn().mockResolvedValue([genuinelyOldPool]);
+
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
+
+    expect(summary.poolsPassedFilter).toBe(1);
   });
 
   it('records the executor fill price as the entry price, not the requested order price', async () => {

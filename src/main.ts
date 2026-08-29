@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import { loadConfig } from './config.js';
+import { createGeckoTerminalClient } from './geckoterminal/client.js';
 import { createBirdeyeClient } from './birdeye/client.js';
+import { createFallbackClient, type MarketDataClient } from './marketdata/client.js';
 import { createJupiterPriceClient } from './jupiter/priceClient.js';
 import { createDb } from './store/db.js';
 import { PositionRepository } from './store/positionRepository.js';
@@ -43,18 +45,31 @@ async function main() {
     process.loadEnvFile('.env');
   }
 
-  // Contrairement à Telegram (facultatif, dégrade vers NullNotifier), Birdeye est la seule
-  // source de données du bot : sans clé API, il ne peut littéralement rien scanner.
+  const config = loadConfig('config/config.json');
+  const geckoTerminalClient = createGeckoTerminalClient(
+    config.geckoTerminal.baseUrl,
+    config.geckoTerminal.minIntervalMs
+  );
+
+  // GeckoTerminal (gratuit, sans clé) est la source principale. Birdeye ne sert que de secours
+  // automatique si GeckoTerminal échoue — comme Telegram, il est facultatif et dégrade proprement
+  // (ici : pas de secours, pas un arrêt du bot) plutôt que de bloquer le démarrage.
   const birdeyeApiKey = process.env.BIRDEYE_API_KEY;
-  if (!birdeyeApiKey) {
-    console.error(
-      "Erreur : BIRDEYE_API_KEY absent de .env. Créez une clé gratuite sur https://birdeye.so et ajoutez-la à .env (voir .env.example)."
+  let client: MarketDataClient = geckoTerminalClient;
+  if (birdeyeApiKey) {
+    console.log('Secours Birdeye activé si GeckoTerminal échoue.');
+    const birdeyeClient = createBirdeyeClient(
+      config.birdeye.baseUrl,
+      birdeyeApiKey,
+      config.birdeye.minIntervalMs
     );
-    process.exit(1);
+    client = createFallbackClient(geckoTerminalClient, birdeyeClient);
+  } else {
+    console.log(
+      'Secours Birdeye désactivé (BIRDEYE_API_KEY absent de .env, facultatif — voir .env.example).'
+    );
   }
 
-  const config = loadConfig('config/config.json');
-  const client = createBirdeyeClient(config.birdeye.baseUrl, birdeyeApiKey, config.birdeye.minIntervalMs);
   const priceClient = createJupiterPriceClient(config.jupiter.baseUrl);
   const db = createDb('data/bot.sqlite');
   const positionRepo = new PositionRepository(db);

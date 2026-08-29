@@ -1,5 +1,5 @@
 import type { BotConfig } from './config.js';
-import type { MarketDataClient } from './birdeye/client.js';
+import type { MarketDataClient } from './marketdata/client.js';
 import type { PriceClient } from './jupiter/priceClient.js';
 import type { PositionRepository } from './store/positionRepository.js';
 import type { DecisionLogRepository } from './store/decisionLogRepository.js';
@@ -58,12 +58,14 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
   try {
     const pools = await scanPools(client, config);
     poolsScanned = pools.length;
-    // Le client Birdeye ne connaît pas la vraie date de création (hors plan gratuit) : on la
-    // remplace ici par la date de première détection de ce pool par ce bot (voir
-    // FirstSeenRepository), avant que le filtre n'évalue minPoolAgeMinutes.
+    // GeckoTerminal (source principale) fournit la vraie date de création du pool ; Birdeye
+    // (secours) ne le peut pas et renvoie "maintenant" en attendant. Dans les deux cas,
+    // FirstSeenRepository ne retient que la toute première valeur vue pour une adresse donnée —
+    // si GeckoTerminal a déjà répondu une fois pour ce pool, sa vraie date gagne définitivement,
+    // même si Birdeye prend le relais plus tard.
     const poolsWithFirstSeenAge = pools.map((pool) => ({
       ...pool,
-      poolCreatedAt: firstSeenRepo.getOrRecordFirstSeen(pool.poolAddress, now),
+      poolCreatedAt: firstSeenRepo.getOrRecordFirstSeen(pool.poolAddress, pool.poolCreatedAt),
     }));
     const filterResults = filterPools(poolsWithFirstSeenAge, config, now);
     // L'espacement entre requêtes Birdeye (1 req/s) est géré en interne par le client
