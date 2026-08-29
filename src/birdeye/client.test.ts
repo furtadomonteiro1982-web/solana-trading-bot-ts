@@ -157,6 +157,17 @@ describe('BirdeyeClient', () => {
     expect(unauthorizedFetch).toHaveBeenCalledTimes(1);
   });
 
+  it('does not retry a 400 — e.g. Birdeye\'s "Compute units usage limit exceeded" never resolves on retry', async () => {
+    // Cas réel rencontré : le quota mensuel de 30 000 CU épuisé renvoie 400 sur chaque appel,
+    // gaspillant 4 requêtes (et leur backoff) avant que ce comportement soit ajouté.
+    const quotaExceededFetch = vi.fn().mockResolvedValue(jsonResponse({}, 400));
+    vi.stubGlobal('fetch', quotaExceededFetch);
+    const client = createBirdeyeClient('https://public-api.birdeye.so', 'key', 0);
+
+    await expect(client.fetchOhlcv('solana', 'TOKEN1', 'hour', 3)).rejects.toThrow(/Birdeye/);
+    expect(quotaExceededFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('retries only once on a persistent 429, like the GeckoTerminal client did', async () => {
     vi.useFakeTimers();
     try {

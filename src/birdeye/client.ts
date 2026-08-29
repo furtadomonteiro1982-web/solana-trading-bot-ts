@@ -196,8 +196,10 @@ async function fetchJsonWithRetry(
 
     // Un 401/403 signifie que la clé n'a pas accès à cette ressource (endpoint hors du plan
     // gratuit, par exemple) — retenter ne changera jamais le résultat, contrairement à un 429 ou
-    // une erreur réseau transitoire.
-    if (response.status === 401 || response.status === 403) {
+    // une erreur réseau transitoire. Un 400 est dans la même catégorie : rencontré en usage réel
+    // pour "Compute units usage limit exceeded" (quota mensuel épuisé) — martelé 4 fois avant que
+    // ce comportement soit ajouté, sans jamais réussir, pour la même raison qu'un 401 persistant.
+    if (response.status === 400 || response.status === 401 || response.status === 403) {
       throw new Error(`Birdeye API error: ${response.status} ${response.statusText}`);
     }
 
