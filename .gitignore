@@ -4,6 +4,7 @@ data/
 *.sqlite
 .env
 logs/
+.claude/worktrees/
 
 # Exports de session Claude Code (peuvent contenir des secrets collés en clair)
 [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*.txt
