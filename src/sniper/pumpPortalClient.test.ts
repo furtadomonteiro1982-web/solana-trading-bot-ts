@@ -129,4 +129,26 @@ describe('createPumpPortalClient', () => {
     expect(FakeWebSocket.instances).toHaveLength(2);
     vi.useRealTimers();
   });
+
+  it('continues invoking listeners even if one throws synchronously, without unhandled rejection', async () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ twitter: 'https://x.com/foo' })));
+    const client = createPumpPortalClient('wss://pumpportal.fun/api/data');
+
+    const firstListener = vi.fn(() => {
+      throw new Error('first listener error');
+    });
+    const secondListener = vi.fn();
+
+    client.onNewToken(firstListener);
+    client.onNewToken(secondListener);
+
+    client.connect();
+    await FakeWebSocket.instances[0].onmessage?.({ data: JSON.stringify(createMessage) });
+    await vi.waitFor(() => expect(secondListener).toHaveBeenCalled());
+
+    expect(firstListener).toHaveBeenCalled();
+    expect(secondListener).toHaveBeenCalled();
+    // If we reach here without an unhandled rejection, the test passes
+  });
 });

@@ -75,7 +75,13 @@ export function createPumpPortalClient(wsUrl: string): PumpPortalClient {
       hasSocialLink,
       creatorInitialBuyPct,
     };
-    for (const listener of listeners) listener(event);
+    for (const listener of listeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        console.error('Erreur dans un listener pumpPortalClient :', error);
+      }
+    }
   }
 
   return {
