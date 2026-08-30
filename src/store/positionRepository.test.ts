@@ -69,4 +69,33 @@ describe('PositionRepository', () => {
     expect(closed.pnlUsd).toBeCloseTo(5, 5); // (1.5-1)/1 * 10
     expect(repo.getOpenPositions()).toHaveLength(0);
   });
+
+  it('defaults strategy to "hourly" when not specified, and stores an explicit "snipe"', () => {
+    const hourlyPosition = repo.openPosition({
+      poolAddress: 'POOL1',
+      baseTokenAddress: 'TOKEN1',
+      baseTokenSymbol: 'FOO',
+      entryPriceUsd: 1,
+      sizeUsd: 10,
+      stopLossPrice: 0.8,
+      takeProfitPrice: 1.5,
+      trailingStopPct: 15,
+      openedAt: new Date(),
+    });
+    expect(hourlyPosition.strategy).toBe('hourly');
+
+    const snipePosition = repo.openPosition({
+      poolAddress: 'POOL2',
+      baseTokenAddress: 'TOKEN2',
+      baseTokenSymbol: 'BAR',
+      entryPriceUsd: 1,
+      sizeUsd: 2,
+      stopLossPrice: 0.6,
+      takeProfitPrice: 2,
+      trailingStopPct: 100,
+      openedAt: new Date(),
+      strategy: 'snipe',
+    });
+    expect(snipePosition.strategy).toBe('snipe');
+  });
 });
