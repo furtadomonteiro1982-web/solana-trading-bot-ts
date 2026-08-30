@@ -94,7 +94,8 @@ beforeEach(() => {
     fetchPool: vi.fn().mockResolvedValue(pool),
   };
   // Price stays between stop-loss (0.45) and take-profit (0.99): position stays open.
-  priceClient = { fetchPrices: vi.fn().mockResolvedValue(new Map([['POOL1', 0.5]])) };
+  // Jupiter Price API is keyed by baseTokenAddress (the token mint), not poolAddress.
+  priceClient = { fetchPrices: vi.fn().mockResolvedValue(new Map([['TOKEN1', 0.5]])) };
 });
 
 describe('runCycle', () => {
@@ -198,6 +199,7 @@ describe('runCycle', () => {
     client.fetchTrendingPools = vi.fn().mockResolvedValue([]);
     positionRepo.openPosition({
       poolAddress: 'POOL3',
+      baseTokenAddress: 'TOKEN3',
       baseTokenSymbol: 'BAZ',
       entryPriceUsd: 1,
       sizeUsd: 10,
@@ -207,7 +209,7 @@ describe('runCycle', () => {
       openedAt: new Date(),
     });
     // Zone de danger : entre le stop-loss (0.5) et 80% du chemin depuis l'entrée (0.6). 0.55 y est.
-    priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['POOL3', 0.55]]));
+    priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['TOKEN3', 0.55]]));
 
     const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
@@ -220,6 +222,7 @@ describe('runCycle', () => {
     client.fetchTrendingPools = vi.fn().mockResolvedValue([]);
     positionRepo.openPosition({
       poolAddress: 'POOL3',
+      baseTokenAddress: 'TOKEN3',
       baseTokenSymbol: 'BAZ',
       entryPriceUsd: 1,
       sizeUsd: 10,
@@ -228,7 +231,7 @@ describe('runCycle', () => {
       trailingStopPct: 90,
       openedAt: new Date(),
     });
-    priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['POOL3', 0.55]]));
+    priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['TOKEN3', 0.55]]));
 
     await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
     notifyMock.mockClear();
@@ -241,6 +244,7 @@ describe('runCycle', () => {
     client.fetchTrendingPools = vi.fn().mockResolvedValue([]);
     positionRepo.openPosition({
       poolAddress: 'POOL3',
+      baseTokenAddress: 'TOKEN3',
       baseTokenSymbol: 'BAZ',
       entryPriceUsd: 1,
       sizeUsd: 10,
@@ -250,7 +254,7 @@ describe('runCycle', () => {
       openedAt: new Date(),
     });
     // Confortablement au-dessus de la zone de danger (< 0.6).
-    priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['POOL3', 0.9]]));
+    priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['TOKEN3', 0.9]]));
 
     await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
@@ -258,7 +262,7 @@ describe('runCycle', () => {
   });
 
   it('keeps processing other pools and still reviews open positions when one pool throws', async () => {
-    const pool2: Pool = { ...pool, poolAddress: 'POOL2', baseTokenSymbol: 'BAR' };
+    const pool2: Pool = { ...pool, poolAddress: 'POOL2', baseTokenAddress: 'TOKEN2', baseTokenSymbol: 'BAR' };
     seedOldFirstSeen('POOL2');
     client.fetchTrendingPools = vi.fn().mockResolvedValue([pool, pool2]);
     client.fetchOhlcv = vi.fn().mockImplementation(async (_network, poolAddress) => {
@@ -269,6 +273,7 @@ describe('runCycle', () => {
     // le prix (1.6) dépasse le take-profit (1.5), elle doit donc être clôturée dans ce cycle.
     positionRepo.openPosition({
       poolAddress: 'POOL3',
+      baseTokenAddress: 'TOKEN3',
       baseTokenSymbol: 'BAZ',
       entryPriceUsd: 1,
       sizeUsd: 10,
@@ -279,8 +284,8 @@ describe('runCycle', () => {
     });
     priceClient.fetchPrices = vi.fn().mockResolvedValue(
       new Map([
-        ['POOL2', 1.6],
-        ['POOL3', 1.6],
+        ['TOKEN2', 1.6],
+        ['TOKEN3', 1.6],
       ])
     );
 
@@ -313,6 +318,7 @@ describe('runCycle', () => {
     client.fetchTrendingPools = vi.fn().mockRejectedValue(new Error('scan cassé'));
     positionRepo.openPosition({
       poolAddress: 'POOL3',
+      baseTokenAddress: 'TOKEN3',
       baseTokenSymbol: 'BAZ',
       entryPriceUsd: 1,
       sizeUsd: 10,
@@ -321,7 +327,7 @@ describe('runCycle', () => {
       trailingStopPct: 15,
       openedAt: new Date(),
     });
-    priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['POOL3', 1.6]]));
+    priceClient.fetchPrices = vi.fn().mockResolvedValue(new Map([['TOKEN3', 1.6]]));
 
     const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
@@ -333,6 +339,7 @@ describe('runCycle', () => {
   it('batches every open position address into a single fetchPrices call', async () => {
     positionRepo.openPosition({
       poolAddress: 'POOL3',
+      baseTokenAddress: 'TOKEN3',
       baseTokenSymbol: 'BAZ',
       entryPriceUsd: 1,
       sizeUsd: 10,
@@ -343,6 +350,7 @@ describe('runCycle', () => {
     });
     positionRepo.openPosition({
       poolAddress: 'POOL4',
+      baseTokenAddress: 'TOKEN4',
       baseTokenSymbol: 'QUX',
       entryPriceUsd: 1,
       sizeUsd: 10,
@@ -356,7 +364,8 @@ describe('runCycle', () => {
     await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 
     expect(priceClient.fetchPrices).toHaveBeenCalledTimes(1);
-    expect(priceClient.fetchPrices).toHaveBeenCalledWith(expect.arrayContaining(['POOL3', 'POOL4']));
+    // Jupiter Price API attend des adresses de token (mint), pas des adresses de pool.
+    expect(priceClient.fetchPrices).toHaveBeenCalledWith(expect.arrayContaining(['TOKEN3', 'TOKEN4']));
   });
 
   it('caps the number of pools evaluated per cycle at maxPoolsPerCycle, without calling the API for the rest', async () => {

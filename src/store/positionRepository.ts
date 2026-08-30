@@ -3,6 +3,7 @@ import type { CloseReason, Position } from '../types.js';
 
 export interface NewPositionData {
   poolAddress: string;
+  baseTokenAddress: string;
   baseTokenSymbol: string;
   entryPriceUsd: number;
   sizeUsd: number;
@@ -18,15 +19,16 @@ export class PositionRepository {
   openPosition(data: NewPositionData): Position {
     const stmt = this.db.prepare(`
       INSERT INTO positions
-        (pool_address, base_token_symbol, entry_price_usd, size_usd,
+        (pool_address, base_token_address, base_token_symbol, entry_price_usd, size_usd,
          stop_loss_price, take_profit_price, trailing_stop_pct,
          highest_price_usd, opened_at, status)
-      VALUES (@poolAddress, @baseTokenSymbol, @entryPriceUsd, @sizeUsd,
+      VALUES (@poolAddress, @baseTokenAddress, @baseTokenSymbol, @entryPriceUsd, @sizeUsd,
               @stopLossPrice, @takeProfitPrice, @trailingStopPct,
               @entryPriceUsd, @openedAt, 'OPEN')
     `);
     const result = stmt.run({
       poolAddress: data.poolAddress,
+      baseTokenAddress: data.baseTokenAddress,
       baseTokenSymbol: data.baseTokenSymbol,
       entryPriceUsd: data.entryPriceUsd,
       sizeUsd: data.sizeUsd,
@@ -71,6 +73,7 @@ function rowToPosition(row: any): Position {
   return {
     id: row.id,
     poolAddress: row.pool_address,
+    baseTokenAddress: row.base_token_address,
     baseTokenSymbol: row.base_token_symbol,
     entryPriceUsd: row.entry_price_usd,
     sizeUsd: row.size_usd,

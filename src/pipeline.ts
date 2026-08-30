@@ -172,6 +172,7 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
 
         positionRepo.openPosition({
           poolAddress: result.pool.poolAddress,
+          baseTokenAddress: result.pool.baseTokenAddress,
           baseTokenSymbol: result.pool.baseTokenSymbol,
           entryPriceUsd: fill.filledPriceUsd,
           sizeUsd: risk.positionSizeUsd,
@@ -211,11 +212,13 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
   try {
     // Un seul appel Jupiter batché pour toutes les positions ouvertes, au lieu d'un appel par
     // position — Jupiter accepte plusieurs adresses séparées par des virgules en une requête.
-    const openAddresses = positionRepo.getOpenPositions().map((position) => position.poolAddress);
+    // Jupiter Price API attend l'adresse du token (mint), pas l'adresse de la pool AMM : les deux
+    // diffèrent, d'où l'usage de baseTokenAddress ici plutôt que poolAddress.
+    const openAddresses = positionRepo.getOpenPositions().map((position) => position.baseTokenAddress);
     const prices = await priceClient.fetchPrices(openAddresses);
     const closedPositions = await reviewOpenPositions(
       positionRepo,
-      async (poolAddress) => prices.get(poolAddress) ?? null,
+      async (baseTokenAddress) => prices.get(baseTokenAddress) ?? null,
       executor,
       now
     );
@@ -229,7 +232,7 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
     // Alerte précoce sur les positions qui restent ouvertes après la revue ci-dessus : le prix
     // s'approche du stop-loss sans l'avoir encore atteint.
     for (const position of positionRepo.getOpenPositions()) {
-      const currentPrice = prices.get(position.poolAddress);
+      const currentPrice = prices.get(position.baseTokenAddress);
       if (currentPrice == null) continue;
       const dangerThreshold =
         position.entryPriceUsd - NEAR_STOP_LOSS_RATIO * (position.entryPriceUsd - position.stopLossPrice);

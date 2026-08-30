@@ -1,7 +1,7 @@
 import type { Executor, Position } from './types.js';
 import type { PositionRepository } from './store/positionRepository.js';
 
-export type PriceLookup = (poolAddress: string) => Promise<number | null>;
+export type PriceLookup = (baseTokenAddress: string) => Promise<number | null>;
 
 export async function reviewOpenPositions(
   positionRepo: PositionRepository,
@@ -13,7 +13,7 @@ export async function reviewOpenPositions(
   const closedPositions: Position[] = [];
 
   for (const position of openPositions) {
-    const currentPrice = await priceLookup(position.poolAddress);
+    const currentPrice = await priceLookup(position.baseTokenAddress);
     if (currentPrice === null) continue;
 
     if (currentPrice > position.highestPriceUsd) {

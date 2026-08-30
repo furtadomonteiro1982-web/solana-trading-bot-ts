@@ -71,6 +71,7 @@ export type CloseReason = 'TAKE_PROFIT' | 'STOP_LOSS' | 'TRAILING_STOP';
 export interface Position {
   id: number;
   poolAddress: string;
+  baseTokenAddress: string;
   baseTokenSymbol: string;
   entryPriceUsd: number;
   sizeUsd: number;

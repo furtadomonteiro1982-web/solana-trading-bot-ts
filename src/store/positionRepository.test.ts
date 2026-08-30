@@ -16,6 +16,7 @@ describe('PositionRepository', () => {
   it('opens a position and can read it back among open positions', () => {
     const position = repo.openPosition({
       poolAddress: 'POOL1',
+      baseTokenAddress: 'TOKEN1',
       baseTokenSymbol: 'FOO',
       entryPriceUsd: 1,
       sizeUsd: 10,
@@ -27,12 +28,14 @@ describe('PositionRepository', () => {
 
     expect(position.status).toBe('OPEN');
     expect(position.highestPriceUsd).toBe(1);
+    expect(position.baseTokenAddress).toBe('TOKEN1');
     expect(repo.getOpenPositions()).toHaveLength(1);
   });
 
   it('updates the highest price seen', () => {
     const position = repo.openPosition({
       poolAddress: 'POOL1',
+      baseTokenAddress: 'TOKEN1',
       baseTokenSymbol: 'FOO',
       entryPriceUsd: 1,
       sizeUsd: 10,
@@ -50,6 +53,7 @@ describe('PositionRepository', () => {
   it('closes a position, computes PnL, and removes it from open positions', () => {
     const position = repo.openPosition({
       poolAddress: 'POOL1',
+      baseTokenAddress: 'TOKEN1',
       baseTokenSymbol: 'FOO',
       entryPriceUsd: 1,
       sizeUsd: 10,

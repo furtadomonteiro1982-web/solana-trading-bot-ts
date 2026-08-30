@@ -28,6 +28,7 @@ beforeEach(() => {
 function openTestPosition() {
   return repo.openPosition({
     poolAddress: 'POOL1',
+    baseTokenAddress: 'TOKEN1',
     baseTokenSymbol: 'FOO',
     entryPriceUsd: 1,
     sizeUsd: 10,
@@ -92,5 +93,15 @@ describe('reviewOpenPositions', () => {
 
     expect(closed).toHaveLength(0);
     expect(repo.getOpenPositions()).toHaveLength(1);
+  });
+
+  it('looks up the price by baseTokenAddress, not poolAddress (Jupiter needs the token mint)', async () => {
+    openTestPosition();
+    const priceLookup = vi.fn().mockResolvedValue(1.1);
+
+    await reviewOpenPositions(repo, priceLookup, executor);
+
+    expect(priceLookup).toHaveBeenCalledWith('TOKEN1');
+    expect(priceLookup).not.toHaveBeenCalledWith('POOL1');
   });
 });
