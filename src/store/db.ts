@@ -10,6 +10,7 @@ export function createDb(dbPath: string): Database.Database {
   db.exec(`
     CREATE TABLE IF NOT EXISTS positions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      strategy TEXT NOT NULL DEFAULT 'hourly',
       pool_address TEXT NOT NULL,
       base_token_address TEXT NOT NULL DEFAULT '',
       base_token_symbol TEXT NOT NULL,
@@ -47,6 +48,12 @@ export function createDb(dbPath: string): Database.Database {
   );
   if (!hasBaseTokenAddress) {
     db.exec(`ALTER TABLE positions ADD COLUMN base_token_address TEXT NOT NULL DEFAULT ''`);
+  }
+  const hasStrategy = (db.prepare('PRAGMA table_info(positions)').all() as { name: string }[]).some(
+    (column) => column.name === 'strategy'
+  );
+  if (!hasStrategy) {
+    db.exec(`ALTER TABLE positions ADD COLUMN strategy TEXT NOT NULL DEFAULT 'hourly'`);
   }
   return db;
 }

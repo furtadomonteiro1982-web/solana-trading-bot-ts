@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { CloseReason, Position } from '../types.js';
+import type { CloseReason, Position, PositionStrategy } from '../types.js';
 
 export interface NewPositionData {
   poolAddress: string;
@@ -11,6 +11,7 @@ export interface NewPositionData {
   takeProfitPrice: number;
   trailingStopPct: number;
   openedAt: Date;
+  strategy?: PositionStrategy;
 }
 
 export class PositionRepository {
@@ -19,14 +20,15 @@ export class PositionRepository {
   openPosition(data: NewPositionData): Position {
     const stmt = this.db.prepare(`
       INSERT INTO positions
-        (pool_address, base_token_address, base_token_symbol, entry_price_usd, size_usd,
+        (strategy, pool_address, base_token_address, base_token_symbol, entry_price_usd, size_usd,
          stop_loss_price, take_profit_price, trailing_stop_pct,
          highest_price_usd, opened_at, status)
-      VALUES (@poolAddress, @baseTokenAddress, @baseTokenSymbol, @entryPriceUsd, @sizeUsd,
+      VALUES (@strategy, @poolAddress, @baseTokenAddress, @baseTokenSymbol, @entryPriceUsd, @sizeUsd,
               @stopLossPrice, @takeProfitPrice, @trailingStopPct,
               @entryPriceUsd, @openedAt, 'OPEN')
     `);
     const result = stmt.run({
+      strategy: data.strategy ?? 'hourly',
       poolAddress: data.poolAddress,
       baseTokenAddress: data.baseTokenAddress,
       baseTokenSymbol: data.baseTokenSymbol,
@@ -72,6 +74,7 @@ export class PositionRepository {
 function rowToPosition(row: any): Position {
   return {
     id: row.id,
+    strategy: row.strategy,
     poolAddress: row.pool_address,
     baseTokenAddress: row.base_token_address,
     baseTokenSymbol: row.base_token_symbol,

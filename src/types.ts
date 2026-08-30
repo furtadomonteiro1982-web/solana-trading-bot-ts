@@ -66,10 +66,13 @@ export interface Executor {
   execute(order: Order): Promise<Fill>;
 }
 
-export type CloseReason = 'TAKE_PROFIT' | 'STOP_LOSS' | 'TRAILING_STOP';
+export type CloseReason = 'TAKE_PROFIT' | 'STOP_LOSS' | 'TRAILING_STOP' | 'TIMEOUT';
+
+export type PositionStrategy = 'hourly' | 'snipe';
 
 export interface Position {
   id: number;
+  strategy: PositionStrategy;
   poolAddress: string;
   baseTokenAddress: string;
   baseTokenSymbol: string;

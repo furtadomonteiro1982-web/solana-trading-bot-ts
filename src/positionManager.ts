@@ -1,4 +1,4 @@
-import type { Executor, Position } from './types.js';
+import type { Executor, Position, PositionStrategy } from './types.js';
 import type { PositionRepository } from './store/positionRepository.js';
 
 export type PriceLookup = (baseTokenAddress: string) => Promise<number | null>;
@@ -7,9 +7,13 @@ export async function reviewOpenPositions(
   positionRepo: PositionRepository,
   priceLookup: PriceLookup,
   executor: Executor,
-  now: Date = new Date()
+  now: Date = new Date(),
+  strategy?: PositionStrategy
 ): Promise<Position[]> {
-  const openPositions = positionRepo.getOpenPositions();
+  const allOpenPositions = positionRepo.getOpenPositions();
+  const openPositions = strategy
+    ? allOpenPositions.filter((position) => position.strategy === strategy)
+    : allOpenPositions;
   const closedPositions: Position[] = [];
 
   for (const position of openPositions) {

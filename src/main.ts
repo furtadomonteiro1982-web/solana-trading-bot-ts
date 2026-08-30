@@ -13,6 +13,8 @@ import { TelegramNotifier } from './notifier/telegramNotifier.js';
 import { NullNotifier } from './notifier/nullNotifier.js';
 import type { Notifier } from './notifier/notifier.js';
 import { runCycle } from './pipeline.js';
+import { createPumpPortalClient } from './sniper/pumpPortalClient.js';
+import { handleNewToken, runSniperReviewCycle, type SniperDeps } from './sniper/sniperPipeline.js';
 
 // Après N cycles consécutifs avec au moins une erreur, on notifie une seule fois plutôt que de
 // spammer à chaque cycle en erreur (un hoquet réseau isolé ne doit pas déclencher d'alerte).
@@ -88,6 +90,47 @@ async function main() {
     stopRequested = true;
   });
 
+  let pumpPortalClient: ReturnType<typeof createPumpPortalClient> | null = null;
+  if (config.sniper.enabled) {
+    const sniperDeps: SniperDeps = { positionRepo, decisionLog, executor, notifier, priceClient, config, pendingSnipes: new Set<string>() };
+
+    pumpPortalClient = createPumpPortalClient(config.sniper.pumpPortalWsUrl);
+    pumpPortalClient.onNewToken((event) => {
+      // Le prix d'entrée n'est pas dans l'événement PumpPortal (qui ne fournit que des quantités
+      // de bonding curve, pas un prix en dollars directement exploitable) : on utilise le prix
+      // Jupiter dès que le token est indexé, avec un court délai pour lui laisser le temps de l'être.
+      setTimeout(() => {
+        void (async () => {
+          if (stopRequested) return; // arrêt en cours : la DB peut déjà être fermée
+          try {
+            const prices = await priceClient.fetchPrices([event.tokenAddress]);
+            const entryPriceUsd = prices.get(event.tokenAddress);
+            if (entryPriceUsd == null) return; // pas encore indexé par Jupiter, on rate ce snipe
+            if (stopRequested) return; // re-check : l'arrêt a pu survenir pendant l'appel Jupiter
+            await handleNewToken(event, sniperDeps, entryPriceUsd);
+          } catch (error) {
+            console.error('Erreur lors du traitement d\'un nouveau token pump.fun :', error);
+          }
+        })();
+      }, 2000);
+    });
+    pumpPortalClient.connect();
+    console.log(`Sniper pump.fun activé (mise ${config.sniper.stakeUsd}$, ${config.sniper.maxOpenSnipes} max).`);
+
+    void (async () => {
+      while (!stopRequested) {
+        try {
+          await runSniperReviewCycle(sniperDeps);
+        } catch (error) {
+          console.error('Erreur pendant la revue des snipes :', error);
+        }
+        await sleep(config.sniper.reviewIntervalSeconds * 1000);
+      }
+    })();
+  } else {
+    console.log('Sniper pump.fun désactivé (config.sniper.enabled = false).');
+  }
+
   console.log(
     `Bot démarré (paper trading). Intervalle : ${config.scanIntervalSeconds}s. Ctrl+C pour arrêter proprement.`
   );
@@ -141,6 +184,7 @@ async function main() {
     }
   }
 
+  pumpPortalClient?.close();
   db.close();
   console.log('Bot arrêté proprement.');
   await notifier.notify('🛑 Bot arrêté proprement.');

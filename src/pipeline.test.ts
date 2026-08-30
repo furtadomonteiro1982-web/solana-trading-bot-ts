@@ -118,6 +118,32 @@ describe('runCycle', () => {
     expect(notifyMock).toHaveBeenCalledWith(expect.stringMatching(/Position ouverte.*FOO/s));
   });
 
+  it('never lets snipe-strategy positions count against the hourly strategy\'s maxOpenPositions budget', async () => {
+    client.fetchTrendingPools = vi.fn().mockResolvedValue([]);
+    // Fill the risk cap (5) entirely with snipe-strategy positions.
+    for (let i = 0; i < config.risk.maxOpenPositions; i++) {
+      positionRepo.openPosition({
+        poolAddress: `SNIPE_POOL_${i}`,
+        baseTokenAddress: `SNIPE_TOKEN_${i}`,
+        baseTokenSymbol: `SNIPE${i}`,
+        entryPriceUsd: 1,
+        sizeUsd: 2,
+        stopLossPrice: 0.6,
+        takeProfitPrice: 2,
+        trailingStopPct: 100,
+        openedAt: new Date(),
+        strategy: 'snipe',
+      });
+    }
+    client.fetchTrendingPools = vi.fn().mockResolvedValue([pool]);
+    client.fetchOhlcv = vi.fn().mockResolvedValue(buyCandles);
+
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
+
+    expect(summary.positionsOpened).toBe(1);
+    expect(positionRepo.getOpenPositions().filter((p) => p.strategy === 'hourly')).toHaveLength(1);
+  });
+
   it('rejects a pool that fails the filter without calling the client for OHLCV', async () => {
     client.fetchTrendingPools = vi.fn().mockResolvedValue([{ ...pool, liquidityUsd: 10 }]);
 
