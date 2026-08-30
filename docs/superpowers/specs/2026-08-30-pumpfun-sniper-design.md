@@ -78,15 +78,26 @@ PumpPortal WS -> Filtre anti-rug -> Dimensionnement -> Exécuteur (paper) -> Sto
   plafond `maxOpenSnipes`, dimensionne la position (mise fixe `stakeUsd`,
   pas un % du capital comme la stratégie horaire — le taux d'échec attendu
   est trop élevé pour miser gros par position), exécute l'achat via
-  `PaperExecutor`, enregistre dans la table `positions` existante (aucun
-  changement de schéma — les colonnes actuelles suffisent), notifie.
-- **Boucle de revue rapide** — reste `reviewOpenPositions` existant, appelé
-  à un intervalle bien plus court que les 120s de la boucle actuelle (ex:
-  8s, configurable), avec les prix Jupiter Price API par `baseTokenAddress`
+  `PaperExecutor`, enregistre dans la table `positions` existante, notifie.
+  **Correction apportée pendant le plan d'implémentation** : la table
+  `positions` gagne une petite colonne `strategy` (`'hourly' | 'snipe'`, avec
+  migration et valeur par défaut `'hourly'` pour les lignes déjà existantes)
+  — indispensable pour compter `maxOpenSnipes` correctement et pour que la
+  boucle de revue rapide (ci-dessous) ne touche jamais aux positions de la
+  stratégie horaire.
+- **Boucle de revue rapide** — réutilise `reviewOpenPositions` existant, à un
+  intervalle bien plus court que les 120s de la boucle actuelle (ex: 8s,
+  configurable), avec les prix Jupiter Price API par `baseTokenAddress`
   (réutilise directement le correctif appliqué plus tôt sur ce même
   mécanisme). Une nouvelle petite fonction, séparée, ajoute la sortie forcée
-  par timeout (`openedAt + maxHoldMinutes < now`) sans modifier
-  `reviewOpenPositions` lui-même — ni ses tests existants.
+  par timeout (`openedAt + maxHoldMinutes < now`).
+  **Correction apportée pendant le plan d'implémentation** : `reviewOpenPositions`
+  gagne un paramètre optionnel `strategy` (défaut : aucun filtre, comportement
+  inchangé) plutôt que de rester intouché comme prévu ici — nécessaire pour
+  que cette boucle rapide (toutes les 8s) et la boucle horaire (toutes les
+  120s) ne puissent jamais réviser la même position en même temps. Tous les
+  tests existants de `reviewOpenPositions` continuent de passer sans
+  modification (le nouveau paramètre est optionnel).
 
 ### Configuration
 
