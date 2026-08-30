@@ -69,4 +69,15 @@ describe('loadConfig', () => {
 
     expect(() => loadConfig(filePath)).toThrow(/Impossible de lire ou parser la config/);
   });
+
+  it('defaults every sniper field when the sniper block is empty', () => {
+    const filePath = writeTempConfig({ ...validConfig, sniper: {} });
+    const config = loadConfig(filePath);
+    expect(config.sniper.enabled).toBe(true);
+    expect(config.sniper.pumpPortalWsUrl).toBe('wss://pumpportal.fun/api/data');
+    expect(config.sniper.stakeUsd).toBe(2);
+    expect(config.sniper.maxOpenSnipes).toBe(5);
+    expect(config.sniper.takeProfitPct).toBe(100);
+    expect(config.sniper.filters.bannedNamePatterns).toEqual(['test', 'scam', 'rug']);
+  });
 });

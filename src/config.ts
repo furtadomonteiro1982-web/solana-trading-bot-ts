@@ -47,6 +47,39 @@ export const BotConfigSchema = z.object({
   jupiter: z.object({
     baseUrl: z.url(),
   }),
+  // Sniper temps réel sur les nouveaux tokens pump.fun (paper trading uniquement) — indépendant
+  // de la stratégie horaire : capital simulé et plafond de positions séparés, voir
+  // docs/superpowers/specs/2026-08-30-pumpfun-sniper-design.md.
+  sniper: z
+    .object({
+      enabled: z.boolean().default(true),
+      pumpPortalWsUrl: z.string().default('wss://pumpportal.fun/api/data'),
+      simulatedCapitalUsd: z.number().positive().default(20),
+      stakeUsd: z.number().positive().default(2),
+      maxOpenSnipes: z.number().int().positive().default(5),
+      stopLossPct: z.number().positive().max(100).default(40),
+      takeProfitPct: z.number().positive().default(100),
+      maxHoldMinutes: z.number().positive().default(15),
+      reviewIntervalSeconds: z.number().positive().default(8),
+      filters: z
+        .object({
+          requireSocialLink: z.boolean().default(true),
+          bannedNamePatterns: z.array(z.string()).default(['test', 'scam', 'rug']),
+          maxCreatorInitialBuyPct: z.number().positive().max(100).default(20),
+        })
+        .default(() => ({} as any)),
+    })
+    .default(() => ({} as any))
+    .superRefine((obj, ctx) => {
+      // Ensure nested defaults are applied when filters is an empty object
+      if (obj.filters && typeof obj.filters === 'object' && Object.keys(obj.filters).length === 0) {
+        obj.filters = {
+          requireSocialLink: true,
+          bannedNamePatterns: ['test', 'scam', 'rug'],
+          maxCreatorInitialBuyPct: 20,
+        };
+      }
+    }),
 });
 
 export type BotConfig = z.infer<typeof BotConfigSchema>;

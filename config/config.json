@@ -33,5 +33,21 @@
   },
   "jupiter": {
     "baseUrl": "https://lite-api.jup.ag"
+  },
+  "sniper": {
+    "enabled": true,
+    "pumpPortalWsUrl": "wss://pumpportal.fun/api/data",
+    "simulatedCapitalUsd": 20,
+    "stakeUsd": 2,
+    "maxOpenSnipes": 5,
+    "stopLossPct": 40,
+    "takeProfitPct": 100,
+    "maxHoldMinutes": 15,
+    "reviewIntervalSeconds": 8,
+    "filters": {
+      "requireSocialLink": true,
+      "bannedNamePatterns": ["test", "scam", "rug"],
+      "maxCreatorInitialBuyPct": 20
+    }
   }
 }
