@@ -117,7 +117,7 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
         if (signal.decision !== 'BUY') continue;
         buySignals += 1;
 
-        const openPositions = positionRepo.getOpenPositions();
+        const openPositions = positionRepo.getOpenPositions().filter((p) => p.strategy === 'hourly');
 
         // Une seule position par pool : avec timeframe "hour" et un scan toutes les 60 s, le même
         // signal BUY se répète pendant des dizaines de cycles consécutifs (la fenêtre OHLCV bouge
@@ -214,7 +214,10 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
     // position — Jupiter accepte plusieurs adresses séparées par des virgules en une requête.
     // Jupiter Price API attend l'adresse du token (mint), pas l'adresse de la pool AMM : les deux
     // diffèrent, d'où l'usage de baseTokenAddress ici plutôt que poolAddress.
-    const openAddresses = positionRepo.getOpenPositions().map((position) => position.baseTokenAddress);
+    const openAddresses = positionRepo
+      .getOpenPositions()
+      .filter((position) => position.strategy === 'hourly')
+      .map((position) => position.baseTokenAddress);
     const prices = await priceClient.fetchPrices(openAddresses);
     const closedPositions = await reviewOpenPositions(
       positionRepo,
@@ -232,7 +235,7 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
 
     // Alerte précoce sur les positions qui restent ouvertes après la revue ci-dessus : le prix
     // s'approche du stop-loss sans l'avoir encore atteint.
-    for (const position of positionRepo.getOpenPositions()) {
+    for (const position of positionRepo.getOpenPositions().filter((p) => p.strategy === 'hourly')) {
       const currentPrice = prices.get(position.baseTokenAddress);
       if (currentPrice == null) continue;
       const dangerThreshold =

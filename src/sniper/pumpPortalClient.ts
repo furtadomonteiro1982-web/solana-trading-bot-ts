@@ -38,8 +38,8 @@ export function createPumpPortalClient(wsUrl: string): PumpPortalClient {
       setTimeout(connect, RECONNECT_DELAY_MS);
     };
     ws.onerror = () => {
-      // onclose fires right after a real network error: reconnection is already
-      // handled there, no need to duplicate it here.
+      // onclose se déclenche juste après une vraie erreur réseau : la reconnexion est déjà
+      // gérée là-bas, pas besoin de la dupliquer ici.
     };
   }
 
@@ -104,8 +104,8 @@ async function fetchHasSocialLink(uri: string): Promise<boolean> {
     const metadata = (await response.json()) as Record<string, unknown>;
     return Boolean(metadata.twitter || metadata.telegram || metadata.website);
   } catch {
-    // Metadata unreachable: treated as "no social link" -- the filter decides based on
-    // requireSocialLink, rather than crashing the whole stream over one token.
+    // Métadonnée injoignable : traitée comme "aucun lien social" — le filtre tranchera selon
+    // requireSocialLink, plutôt que de faire planter tout le flux pour un seul token.
     return false;
   }
 }

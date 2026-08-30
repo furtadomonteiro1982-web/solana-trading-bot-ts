@@ -16,6 +16,12 @@ export interface SniperDeps {
   notifier: Notifier;
   priceClient: PriceClient;
   config: BotConfig;
+  // Adresses de token dont l'achat est en cours entre la vérification de maxOpenSnipes et
+  // l'écriture en base : sans ça, deux handleNewToken concurrents (rafale de créations pump.fun)
+  // peuvent tous les deux lire le même compte en base avant que l'un des deux n'insère, et
+  // dépasser le plafond. Réservé au moment où le risque est approuvé, libéré une fois la position
+  // écrite (ou en cas d'échec).
+  pendingSnipes: Set<string>;
 }
 
 export async function handleNewToken(
@@ -36,7 +42,8 @@ export async function handleNewToken(
   });
   if (!filterResult.passed) return;
 
-  const openSnipesCount = positionRepo.getOpenPositions().filter((p) => p.strategy === 'snipe').length;
+  const openSnipesCount =
+    positionRepo.getOpenPositions().filter((p) => p.strategy === 'snipe').length + deps.pendingSnipes.size;
   const risk = evaluateSnipeRisk(entryPriceUsd, openSnipesCount, config);
   if (!risk.approved || risk.positionSizeUsd === undefined || risk.stopLossPrice === undefined || risk.takeProfitPrice === undefined) {
     decisionLog.log({
@@ -49,31 +56,36 @@ export async function handleNewToken(
     return;
   }
 
-  const fill = await executor.execute({
-    poolAddress: event.tokenAddress,
-    baseTokenSymbol: event.symbol,
-    side: 'BUY',
-    sizeUsd: risk.positionSizeUsd,
-    priceUsd: entryPriceUsd,
-  });
+  deps.pendingSnipes.add(event.tokenAddress);
+  try {
+    const fill = await executor.execute({
+      poolAddress: event.tokenAddress,
+      baseTokenSymbol: event.symbol,
+      side: 'BUY',
+      sizeUsd: risk.positionSizeUsd,
+      priceUsd: entryPriceUsd,
+    });
 
-  positionRepo.openPosition({
-    poolAddress: event.tokenAddress,
-    baseTokenAddress: event.tokenAddress,
-    baseTokenSymbol: event.symbol,
-    entryPriceUsd: fill.filledPriceUsd,
-    sizeUsd: risk.positionSizeUsd,
-    stopLossPrice: risk.stopLossPrice,
-    takeProfitPrice: risk.takeProfitPrice,
-    trailingStopPct: 100, // pas de trailing stop pour les snipes : TP/SL/timeout suffisent (voir spec)
-    openedAt: now,
-    strategy: 'snipe',
-  });
+    positionRepo.openPosition({
+      poolAddress: event.tokenAddress,
+      baseTokenAddress: event.tokenAddress,
+      baseTokenSymbol: event.symbol,
+      entryPriceUsd: fill.filledPriceUsd,
+      sizeUsd: risk.positionSizeUsd,
+      stopLossPrice: risk.stopLossPrice,
+      takeProfitPrice: risk.takeProfitPrice,
+      trailingStopPct: 100, // pas de trailing stop pour les snipes : TP/SL/timeout suffisent (voir spec)
+      openedAt: now,
+      strategy: 'snipe',
+    });
 
-  await notifier.notify(
-    `🎯 Snipe ouvert : ${event.symbol} (${event.tokenAddress})\n` +
-      `Entrée : ${fill.filledPriceUsd}$ — Mise : ${risk.positionSizeUsd.toFixed(2)}$`
-  );
+    await notifier.notify(
+      `🎯 Snipe ouvert : ${event.symbol} (${event.tokenAddress})\n` +
+        `Entrée : ${fill.filledPriceUsd}$ — Mise : ${risk.positionSizeUsd.toFixed(2)}$`
+    );
+  } finally {
+    deps.pendingSnipes.delete(event.tokenAddress);
+  }
 }
 
 export async function runSniperReviewCycle(deps: SniperDeps): Promise<void> {

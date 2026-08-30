@@ -88,7 +88,7 @@ async function main() {
 
   let pumpPortalClient: ReturnType<typeof createPumpPortalClient> | null = null;
   if (config.sniper.enabled) {
-    const sniperDeps: SniperDeps = { positionRepo, decisionLog, executor, notifier, priceClient, config };
+    const sniperDeps: SniperDeps = { positionRepo, decisionLog, executor, notifier, priceClient, config, pendingSnipes: new Set<string>() };
 
     pumpPortalClient = createPumpPortalClient(config.sniper.pumpPortalWsUrl);
     pumpPortalClient.onNewToken((event) => {
@@ -97,10 +97,16 @@ async function main() {
       // Jupiter dès que le token est indexé, avec un court délai pour lui laisser le temps de l'être.
       setTimeout(() => {
         void (async () => {
-          const prices = await priceClient.fetchPrices([event.tokenAddress]);
-          const entryPriceUsd = prices.get(event.tokenAddress);
-          if (entryPriceUsd == null) return; // pas encore indexé par Jupiter, on rate ce snipe
-          await handleNewToken(event, sniperDeps, entryPriceUsd);
+          if (stopRequested) return; // arrêt en cours : la DB peut déjà être fermée
+          try {
+            const prices = await priceClient.fetchPrices([event.tokenAddress]);
+            const entryPriceUsd = prices.get(event.tokenAddress);
+            if (entryPriceUsd == null) return; // pas encore indexé par Jupiter, on rate ce snipe
+            if (stopRequested) return; // re-check : l'arrêt a pu survenir pendant l'appel Jupiter
+            await handleNewToken(event, sniperDeps, entryPriceUsd);
+          } catch (error) {
+            console.error('Erreur lors du traitement d\'un nouveau token pump.fun :', error);
+          }
         })();
       }, 2000);
     });

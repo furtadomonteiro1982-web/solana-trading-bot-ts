@@ -65,7 +65,7 @@ beforeEach(() => {
   notifyMock = vi.fn<(message: string) => Promise<void>>().mockResolvedValue(undefined);
   notifier = { notify: notifyMock };
   priceClient = { fetchPrices: vi.fn().mockResolvedValue(new Map()) };
-  deps = { positionRepo, decisionLog, executor, notifier, priceClient, config };
+  deps = { positionRepo, decisionLog, executor, notifier, priceClient, config, pendingSnipes: new Set<string>() };
 });
 
 describe('handleNewToken', () => {
@@ -96,6 +96,36 @@ describe('handleNewToken', () => {
     await handleNewToken(makeEvent({ tokenAddress: 'MINT3', symbol: 'CCC' }), deps, 0.001);
 
     expect(positionRepo.getOpenPositions()).toHaveLength(2);
+  });
+
+  it('does not exceed maxOpenSnipes when two handleNewToken calls race past the cap check concurrently', async () => {
+    const cappedConfig = {
+      ...config,
+      sniper: { ...config.sniper, maxOpenSnipes: 1 },
+    } as BotConfig;
+    const depsWithCap: SniperDeps = { ...deps, config: cappedConfig };
+
+    let releaseGate: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    executeMock.mockImplementation(async (order: Order): Promise<Fill> => {
+      await gate;
+      return {
+        poolAddress: order.poolAddress,
+        side: order.side,
+        sizeUsd: order.sizeUsd,
+        filledPriceUsd: order.priceUsd,
+        filledAt: new Date(),
+      };
+    });
+
+    const first = handleNewToken(makeEvent({ tokenAddress: 'MINT1', symbol: 'AAA' }), depsWithCap, 0.001);
+    const second = handleNewToken(makeEvent({ tokenAddress: 'MINT2', symbol: 'BBB' }), depsWithCap, 0.001);
+    releaseGate?.();
+    await Promise.all([first, second]);
+
+    expect(positionRepo.getOpenPositions()).toHaveLength(1);
   });
 });
 
