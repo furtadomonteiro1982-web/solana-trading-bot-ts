@@ -67,18 +67,27 @@ export const BotConfigSchema = z.object({
           bannedNamePatterns: z.array(z.string()).default(['test', 'scam', 'rug']),
           maxCreatorInitialBuyPct: z.number().positive().max(100).default(20),
         })
-        .default(() => ({} as any)),
-    })
-    .default(() => ({} as any))
-    .superRefine((obj, ctx) => {
-      // Ensure nested defaults are applied when filters is an empty object
-      if (obj.filters && typeof obj.filters === 'object' && Object.keys(obj.filters).length === 0) {
-        obj.filters = {
+        .default({
           requireSocialLink: true,
           bannedNamePatterns: ['test', 'scam', 'rug'],
           maxCreatorInitialBuyPct: 20,
-        };
-      }
+        }),
+    })
+    .default({
+      enabled: true,
+      pumpPortalWsUrl: 'wss://pumpportal.fun/api/data',
+      simulatedCapitalUsd: 20,
+      stakeUsd: 2,
+      maxOpenSnipes: 5,
+      stopLossPct: 40,
+      takeProfitPct: 100,
+      maxHoldMinutes: 15,
+      reviewIntervalSeconds: 8,
+      filters: {
+        requireSocialLink: true,
+        bannedNamePatterns: ['test', 'scam', 'rug'],
+        maxCreatorInitialBuyPct: 20,
+      },
     }),
 });
 
