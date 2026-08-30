@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { loadConfig } from './config.js';
 import { createGeckoTerminalClient } from './geckoterminal/client.js';
 import { createBirdeyeClient } from './birdeye/client.js';
-import { createFallbackClient, type MarketDataClient } from './marketdata/client.js';
+import { createFallbackClient, createCachedClient, type MarketDataClient } from './marketdata/client.js';
 import { createJupiterPriceClient } from './jupiter/priceClient.js';
 import { createDb } from './store/db.js';
 import { PositionRepository } from './store/positionRepository.js';
@@ -68,6 +68,10 @@ async function main() {
     console.log(
       'Secours Birdeye désactivé (BIRDEYE_API_KEY absent de .env, facultatif — voir .env.example).'
     );
+  }
+  if (config.ohlcvCacheTtlMs > 0) {
+    console.log(`Cache OHLCV activé (${config.ohlcvCacheTtlMs / 1000}s) pour réduire les appels API par cycle.`);
+    client = createCachedClient(client, config.ohlcvCacheTtlMs);
   }
 
   const priceClient = createJupiterPriceClient(config.jupiter.baseUrl);

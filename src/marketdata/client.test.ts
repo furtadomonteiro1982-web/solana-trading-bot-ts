@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createFallbackClient } from './client.js';
+import { createFallbackClient, createCachedClient } from './client.js';
 import type { MarketDataClient } from './client.js';
 import type { Pool, Candle } from '../types.js';
 
@@ -134,5 +134,65 @@ describe('createFallbackClient', () => {
     const client = createFallbackClient(primary, secondary);
 
     await expect(client.fetchOhlcv('solana', 'A', 'hour', 10)).rejects.toThrow(/secours cassé aussi/);
+  });
+});
+
+describe('createCachedClient', () => {
+  function makeUnderlying() {
+    return {
+      fetchTrendingPools: vi.fn().mockResolvedValue([makePool('A')]),
+      fetchOhlcv: vi.fn().mockResolvedValue([makeCandle()]),
+      fetchPool: vi.fn().mockResolvedValue(makePool('A')),
+    } satisfies MarketDataClient;
+  }
+
+  it('serves fetchOhlcv from cache on a second call within the TTL, without hitting the underlying client again', async () => {
+    const underlying = makeUnderlying();
+    let currentTime = 0;
+    const client = createCachedClient(underlying, 600_000, () => currentTime);
+
+    const first = await client.fetchOhlcv('solana', 'A', 'hour', 100);
+    currentTime += 300_000; // 5 min later, still within the 10-min TTL
+    const second = await client.fetchOhlcv('solana', 'A', 'hour', 100);
+
+    expect(second).toBe(first);
+    expect(underlying.fetchOhlcv).toHaveBeenCalledTimes(1);
+  });
+
+  it('refetches once the TTL has expired', async () => {
+    const underlying = makeUnderlying();
+    let currentTime = 0;
+    const client = createCachedClient(underlying, 600_000, () => currentTime);
+
+    await client.fetchOhlcv('solana', 'A', 'hour', 100);
+    currentTime += 600_001; // just past the TTL
+    await client.fetchOhlcv('solana', 'A', 'hour', 100);
+
+    expect(underlying.fetchOhlcv).toHaveBeenCalledTimes(2);
+  });
+
+  it('caches separately per pool address, so a different pool is never served another pool\'s candles', async () => {
+    const underlying = makeUnderlying();
+    const client = createCachedClient(underlying, 600_000, () => 0);
+
+    await client.fetchOhlcv('solana', 'A', 'hour', 100);
+    await client.fetchOhlcv('solana', 'B', 'hour', 100);
+
+    expect(underlying.fetchOhlcv).toHaveBeenCalledTimes(2);
+    expect(underlying.fetchOhlcv).toHaveBeenCalledWith('solana', 'A', 'hour', 100);
+    expect(underlying.fetchOhlcv).toHaveBeenCalledWith('solana', 'B', 'hour', 100);
+  });
+
+  it('never caches fetchTrendingPools or fetchPool: they always hit the underlying client', async () => {
+    const underlying = makeUnderlying();
+    const client = createCachedClient(underlying, 600_000, () => 0);
+
+    await client.fetchTrendingPools('solana');
+    await client.fetchTrendingPools('solana');
+    await client.fetchPool('solana', 'A');
+    await client.fetchPool('solana', 'A');
+
+    expect(underlying.fetchTrendingPools).toHaveBeenCalledTimes(2);
+    expect(underlying.fetchPool).toHaveBeenCalledTimes(2);
   });
 });

@@ -49,6 +49,7 @@ describe('loadConfig', () => {
     const config = loadConfig(filePath);
     expect(config.scanIntervalSeconds).toBe(60);
     expect(config.risk.simulatedCapitalUsd).toBe(100);
+    expect(config.ohlcvCacheTtlMs).toBe(600_000); // valeur par défaut, absente de validConfig
   });
 
   it('throws a clear error when a required field is missing', () => {

@@ -13,6 +13,11 @@ export const BotConfigSchema = z.object({
   // dupliquer ce réglage par fournisseur alors que le pipeline demande toujours la même chose.
   timeframe: z.enum(['day', 'hour', 'minute']),
   ohlcvLimit: z.number().int().positive(),
+  // Réutilise les bougies déjà téléchargées pendant ce délai au lieu de rappeler l'API à chaque
+  // cycle pour les mêmes pools : avec un timeframe "hour", les bougies changent à peine sur
+  // quelques minutes, donc cette fenêtre coupe une grosse part du volume d'appels fetchOhlcv sans
+  // perte de pertinence pour les indicateurs.
+  ohlcvCacheTtlMs: z.number().nonnegative().default(600_000),
   filters: z.object({
     minLiquidityUsd: z.number().nonnegative(),
     minPoolAgeMinutes: z.number().nonnegative(),

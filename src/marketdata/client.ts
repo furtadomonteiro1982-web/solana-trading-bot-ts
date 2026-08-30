@@ -49,3 +49,33 @@ export function createFallbackClient(
     },
   };
 }
+
+/**
+ * Met en cache les réponses fetchOhlcv en mémoire, par (network, poolAddress, timeframe, limit),
+ * pendant ttlMs. Avec un scan toutes les scanIntervalSeconds et un timeframe "hour", les bougies
+ * changent à peine d'un cycle à l'autre — retélécharger l'historique complet à chaque cycle pour
+ * les mêmes quelques pools gaspille une grosse partie du quota de débit de GeckoTerminal pour rien.
+ * fetchTrendingPools et fetchPool ne sont pas mis en cache : leurs prix doivent rester à jour à
+ * chaque cycle (scan, revue des positions).
+ */
+export function createCachedClient(
+  client: MarketDataClient,
+  ttlMs: number,
+  now: () => number = Date.now
+): MarketDataClient {
+  const cache = new Map<string, { candles: Candle[]; cachedAt: number }>();
+  return {
+    fetchTrendingPools: (network) => client.fetchTrendingPools(network),
+    fetchPool: (network, poolAddress) => client.fetchPool(network, poolAddress),
+    async fetchOhlcv(network, poolAddress, timeframe, limit) {
+      const key = `${network}:${poolAddress}:${timeframe}:${limit}`;
+      const cached = cache.get(key);
+      if (cached && now() - cached.cachedAt < ttlMs) {
+        return cached.candles;
+      }
+      const candles = await client.fetchOhlcv(network, poolAddress, timeframe, limit);
+      cache.set(key, { candles, cachedAt: now() });
+      return candles;
+    },
+  };
+}

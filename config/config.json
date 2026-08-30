@@ -4,6 +4,7 @@
   "maxPoolsPerCycle": 5,
   "timeframe": "hour",
   "ohlcvLimit": 100,
+  "ohlcvCacheTtlMs": 600000,
   "filters": {
     "minLiquidityUsd": 10000,
     "minPoolAgeMinutes": 60
