@@ -104,4 +104,27 @@ describe('reviewOpenPositions', () => {
     expect(priceLookup).toHaveBeenCalledWith('TOKEN1');
     expect(priceLookup).not.toHaveBeenCalledWith('POOL1');
   });
+
+  it('only reviews positions matching the given strategy, leaving the others untouched', async () => {
+    openTestPosition(); // defaults to strategy 'hourly', poolAddress POOL1
+    repo.openPosition({
+      poolAddress: 'POOL2',
+      baseTokenAddress: 'TOKEN2',
+      baseTokenSymbol: 'BAR',
+      entryPriceUsd: 1,
+      sizeUsd: 2,
+      stopLossPrice: 0.6,
+      takeProfitPrice: 1.2,
+      trailingStopPct: 100,
+      openedAt: new Date(),
+      strategy: 'snipe',
+    });
+
+    // 1.5 is above both positions' take-profit, so anything reviewed would close.
+    const closed = await reviewOpenPositions(repo, async () => 1.5, executor, new Date(), 'snipe');
+
+    expect(closed).toHaveLength(1);
+    expect(closed[0].poolAddress).toBe('POOL2');
+    expect(repo.getOpenPositions().filter((p) => p.poolAddress === 'POOL1')).toHaveLength(1);
+  });
 });

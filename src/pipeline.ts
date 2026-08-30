@@ -220,7 +220,8 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
       positionRepo,
       async (baseTokenAddress) => prices.get(baseTokenAddress) ?? null,
       executor,
-      now
+      now,
+      'hourly'
     );
     positionsClosed = closedPositions.length;
     for (const position of closedPositions) {
