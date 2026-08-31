@@ -43,7 +43,7 @@
     "maxOpenSnipes": 5,
     "stopLossPct": 40,
     "takeProfitPct": 100,
-    "maxHoldMinutes": 15,
+    "maxHoldMinutes": 5,
     "reviewIntervalSeconds": 8,
     "filters": {
       "requireSocialLink": true,
