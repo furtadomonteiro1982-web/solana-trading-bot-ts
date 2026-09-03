@@ -10,6 +10,7 @@ export interface NewTokenEvent {
 export interface SnipeFilterConfig {
   requireSocialLink: boolean;
   bannedNamePatterns: string[];
+  minCreatorInitialBuyPct: number;
   maxCreatorInitialBuyPct: number;
 }
 
@@ -35,6 +36,13 @@ export function shouldSnipe(event: NewTokenEvent, config: SnipeFilterConfig): Sn
     return {
       passed: false,
       reason: `Achat initial du créateur trop élevé (${event.creatorInitialBuyPct.toFixed(1)}% > ${config.maxCreatorInitialBuyPct}%)`,
+    };
+  }
+
+  if (event.creatorInitialBuyPct < config.minCreatorInitialBuyPct) {
+    return {
+      passed: false,
+      reason: `Achat initial du créateur trop faible, aucun engagement (${event.creatorInitialBuyPct.toFixed(1)}% < ${config.minCreatorInitialBuyPct}%)`,
     };
   }
 

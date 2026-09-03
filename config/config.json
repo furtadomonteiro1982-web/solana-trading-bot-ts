@@ -47,8 +47,9 @@
     "reviewIntervalSeconds": 8,
     "filters": {
       "requireSocialLink": true,
-      "bannedNamePatterns": ["test", "scam", "rug"],
-      "maxCreatorInitialBuyPct": 20
+      "bannedNamePatterns": ["test", "scam", "rug", "airdrop", "giveaway", "presale", "whitelist", "1000x"],
+      "minCreatorInitialBuyPct": 1,
+      "maxCreatorInitialBuyPct": 10
     }
   }
 }

@@ -69,13 +69,17 @@ export const BotConfigSchema = z.object({
       filters: z
         .object({
           requireSocialLink: z.boolean().default(true),
-          bannedNamePatterns: z.array(z.string()).default(['test', 'scam', 'rug']),
-          maxCreatorInitialBuyPct: z.number().positive().max(100).default(20),
+          bannedNamePatterns: z
+            .array(z.string())
+            .default(['test', 'scam', 'rug', 'airdrop', 'giveaway', 'presale', 'whitelist', '1000x']),
+          minCreatorInitialBuyPct: z.number().min(0).max(100).default(1),
+          maxCreatorInitialBuyPct: z.number().positive().max(100).default(10),
         })
         .default({
           requireSocialLink: true,
-          bannedNamePatterns: ['test', 'scam', 'rug'],
-          maxCreatorInitialBuyPct: 20,
+          bannedNamePatterns: ['test', 'scam', 'rug', 'airdrop', 'giveaway', 'presale', 'whitelist', '1000x'],
+          minCreatorInitialBuyPct: 1,
+          maxCreatorInitialBuyPct: 10,
         }),
     })
     .default({
@@ -90,8 +94,9 @@ export const BotConfigSchema = z.object({
       reviewIntervalSeconds: 8,
       filters: {
         requireSocialLink: true,
-        bannedNamePatterns: ['test', 'scam', 'rug'],
-        maxCreatorInitialBuyPct: 20,
+        bannedNamePatterns: ['test', 'scam', 'rug', 'airdrop', 'giveaway', 'presale', 'whitelist', '1000x'],
+        minCreatorInitialBuyPct: 1,
+        maxCreatorInitialBuyPct: 10,
       },
     }),
 });

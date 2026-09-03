@@ -79,6 +79,17 @@ describe('loadConfig', () => {
     expect(config.sniper.stakeUsd).toBe(2);
     expect(config.sniper.maxOpenSnipes).toBe(5);
     expect(config.sniper.takeProfitPct).toBe(100);
-    expect(config.sniper.filters.bannedNamePatterns).toEqual(['test', 'scam', 'rug']);
+    expect(config.sniper.filters.bannedNamePatterns).toEqual([
+      'test',
+      'scam',
+      'rug',
+      'airdrop',
+      'giveaway',
+      'presale',
+      'whitelist',
+      '1000x',
+    ]);
+    expect(config.sniper.filters.minCreatorInitialBuyPct).toBe(1);
+    expect(config.sniper.filters.maxCreatorInitialBuyPct).toBe(10);
   });
 });

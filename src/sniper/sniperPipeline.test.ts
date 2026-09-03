@@ -21,6 +21,7 @@ const config = {
     filters: {
       requireSocialLink: true,
       bannedNamePatterns: ['scam'],
+      minCreatorInitialBuyPct: 1,
       maxCreatorInitialBuyPct: 20,
     },
   },

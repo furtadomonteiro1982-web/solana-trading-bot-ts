@@ -5,6 +5,7 @@ import type { NewTokenEvent, SnipeFilterConfig } from './snipeFilter.js';
 const config: SnipeFilterConfig = {
   requireSocialLink: true,
   bannedNamePatterns: ['test', 'scam', 'rug'],
+  minCreatorInitialBuyPct: 1,
   maxCreatorInitialBuyPct: 20,
 };
 
@@ -56,6 +57,17 @@ describe('shouldSnipe', () => {
 
   it('accepts when the creator initial buy is exactly at the configured maximum', () => {
     const result = shouldSnipe(makeEvent({ creatorInitialBuyPct: 20 }), config);
+    expect(result.passed).toBe(true);
+  });
+
+  it('rejects when the creator initial buy is below the configured minimum (no skin in the game)', () => {
+    const result = shouldSnipe(makeEvent({ creatorInitialBuyPct: 0.3 }), config);
+    expect(result.passed).toBe(false);
+    expect(result.reason).toMatch(/0\.3/);
+  });
+
+  it('accepts when the creator initial buy is exactly at the configured minimum', () => {
+    const result = shouldSnipe(makeEvent({ creatorInitialBuyPct: 1 }), config);
     expect(result.passed).toBe(true);
   });
 });
