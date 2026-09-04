@@ -23,20 +23,33 @@ export function evaluateSignal(pool: Pool, candles: Candle[], config: BotConfig)
 
   const latestClose = closes[closes.length - 1];
   const isOversold = rsi <= config.indicators.rsiOversold;
+  const isStrong = rsi >= config.indicators.rsiOversold;
   const hasMomentum = momentumPct >= config.indicators.momentumMinPct;
   const aboveTrend = latestClose > sma;
+  const strategy = config.indicators.strategy ?? 'meanReversion';
+  const rsiConditionMet = strategy === 'momentum' ? isStrong : isOversold;
 
-  if (isOversold && hasMomentum && aboveTrend) {
+  if (rsiConditionMet && hasMomentum && aboveTrend) {
+    const rsiReason =
+      strategy === 'momentum'
+        ? `RSI fort (${rsi.toFixed(1)})`
+        : `RSI survendu (${rsi.toFixed(1)})`;
     return {
       pool,
       decision: 'BUY',
-      reason: `RSI survendu (${rsi.toFixed(1)}) avec momentum positif (${momentumPct.toFixed(1)}%) et prix au-dessus de la SMA`,
+      reason: `${rsiReason} avec momentum positif (${momentumPct.toFixed(1)}%) et prix au-dessus de la SMA`,
       indicators,
     };
   }
 
   const reasons: string[] = [];
-  if (!isOversold) reasons.push(`RSI ${rsi.toFixed(1)} > seuil ${config.indicators.rsiOversold}`);
+  if (!rsiConditionMet) {
+    reasons.push(
+      strategy === 'momentum'
+        ? `RSI ${rsi.toFixed(1)} < seuil ${config.indicators.rsiOversold}`
+        : `RSI ${rsi.toFixed(1)} > seuil ${config.indicators.rsiOversold}`
+    );
+  }
   if (!hasMomentum) reasons.push(`momentum ${momentumPct.toFixed(1)}% < seuil ${config.indicators.momentumMinPct}%`);
   if (!aboveTrend) reasons.push('prix sous la SMA');
 

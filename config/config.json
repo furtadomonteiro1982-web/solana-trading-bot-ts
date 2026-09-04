@@ -14,7 +14,8 @@
     "rsiOversold": 50,
     "smaPeriod": 20,
     "momentumLookbackCandles": 6,
-    "momentumMinPct": 1
+    "momentumMinPct": 1,
+    "strategy": "momentum"
   },
   "risk": {
     "simulatedCapitalUsd": 100,

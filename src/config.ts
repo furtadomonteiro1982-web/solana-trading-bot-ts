@@ -28,6 +28,11 @@ export const BotConfigSchema = z.object({
     smaPeriod: z.number().int().positive(),
     momentumLookbackCandles: z.number().int().positive(),
     momentumMinPct: z.number(),
+    // meanReversion (historique) : achète le creux (RSI <= rsiOversold) dans une tendance haussière.
+    // momentum : achète la force déjà là (RSI >= rsiOversold) plutôt que le creux — suit un
+    // mouvement en cours au lieu d'anticiper un rebond. Réutilise rsiOversold comme seuil miroir
+    // plutôt qu'un nouveau champ, pour rester un changement contenu.
+    strategy: z.enum(['meanReversion', 'momentum']).default('meanReversion'),
   }),
   risk: z.object({
     simulatedCapitalUsd: z.number().positive(),
