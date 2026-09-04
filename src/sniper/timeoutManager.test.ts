@@ -79,4 +79,43 @@ describe('closeTimedOutPositions', () => {
     expect(closed).toHaveLength(0);
     expect(repo.getOpenPositions()).toHaveLength(1);
   });
+
+  it('does not close at maxHoldMs a position that once pumped above the no-pump threshold', async () => {
+    const openedAt = new Date('2026-08-30T12:00:00.000Z');
+    const position = openSnipe(openedAt); // entry 1
+    repo.updateHighestPrice(position.id, 1.25); // once reached +25%, above the 20% default threshold
+    const now = new Date('2026-08-30T12:16:00.000Z'); // 16 min later, past maxHoldMs=15min
+    const maxHoldMs = 15 * 60 * 1000;
+
+    const closed = await closeTimedOutPositions(repo, maxHoldMs, async () => 1.05, executor, now);
+
+    expect(closed).toHaveLength(0);
+    expect(repo.getOpenPositions()).toHaveLength(1);
+  });
+
+  it('still closes a pumped position once the extended hold time is reached', async () => {
+    const openedAt = new Date('2026-08-30T12:00:00.000Z');
+    const position = openSnipe(openedAt); // entry 1
+    repo.updateHighestPrice(position.id, 1.25);
+    const maxHoldMs = 15 * 60 * 1000;
+    // Default extension multiplier is 3x -> 45 min. 46 min later is past it.
+    const now = new Date('2026-08-30T12:46:00.000Z');
+
+    const closed = await closeTimedOutPositions(repo, maxHoldMs, async () => 1.05, executor, now);
+
+    expect(closed).toHaveLength(1);
+    expect(closed[0].closeReason).toBe('TIMEOUT');
+  });
+
+  it('closes at the normal maxHoldMs a position that only pumped up to the no-pump threshold (not above)', async () => {
+    const openedAt = new Date('2026-08-30T12:00:00.000Z');
+    const position = openSnipe(openedAt); // entry 1
+    repo.updateHighestPrice(position.id, 1.2); // exactly +20%, not above the threshold
+    const now = new Date('2026-08-30T12:16:00.000Z');
+    const maxHoldMs = 15 * 60 * 1000;
+
+    const closed = await closeTimedOutPositions(repo, maxHoldMs, async () => 1.05, executor, now);
+
+    expect(closed).toHaveLength(1);
+  });
 });

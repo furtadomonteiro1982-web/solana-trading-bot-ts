@@ -77,6 +77,11 @@ export const BotConfigSchema = z.object({
       // plutôt qu'une égalité stricte — voir momentumFilter.ts.
       momentumCheckDelayMs: z.number().positive().default(8000),
       minMomentumIncreasePct: z.number().positive().default(1),
+      // Time-stop conditionnel (inspiré de solana_memecoin_bot/risk.py) : un token qui a déjà
+      // dépassé ce seuil de hausse (même s'il a reflué depuis) obtient pumpedHoldExtensionMultiplier
+      // fois plus de temps avant timeout, au lieu d'être coupé au même délai qu'un token resté plat.
+      noPumpThresholdPct: z.number().positive().default(20),
+      pumpedHoldExtensionMultiplier: z.number().positive().default(3),
       filters: z
         .object({
           requireSocialLink: z.boolean().default(true),
@@ -105,6 +110,8 @@ export const BotConfigSchema = z.object({
       reviewIntervalSeconds: 8,
       momentumCheckDelayMs: 8000,
       minMomentumIncreasePct: 1,
+      noPumpThresholdPct: 20,
+      pumpedHoldExtensionMultiplier: 3,
       filters: {
         requireSocialLink: true,
         bannedNamePatterns: ['test', 'scam', 'rug', 'airdrop', 'giveaway', 'presale', 'whitelist', '1000x'],

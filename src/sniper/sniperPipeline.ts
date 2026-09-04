@@ -103,7 +103,10 @@ export async function runSniperReviewCycle(deps: SniperDeps): Promise<void> {
     positionRepo,
     config.sniper.maxHoldMinutes * 60 * 1000,
     priceLookup,
-    deps.executor
+    deps.executor,
+    new Date(),
+    config.sniper.noPumpThresholdPct,
+    config.sniper.pumpedHoldExtensionMultiplier
   );
 
   for (const position of [...closedOnTpSl, ...closedOnTimeout]) {
