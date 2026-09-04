@@ -15,7 +15,7 @@
     "smaPeriod": 20,
     "momentumLookbackCandles": 6,
     "momentumMinPct": 1,
-    "strategy": "momentum"
+    "strategy": "meanReversion"
   },
   "risk": {
     "simulatedCapitalUsd": 100,
