@@ -1,7 +1,7 @@
 {
   "scanIntervalSeconds": 120,
   "network": "solana",
-  "maxPoolsPerCycle": 5,
+  "maxPoolsPerCycle": 20,
   "timeframe": "hour",
   "ohlcvLimit": 100,
   "ohlcvCacheTtlMs": 600000,
