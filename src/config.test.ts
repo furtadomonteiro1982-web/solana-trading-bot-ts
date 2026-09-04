@@ -79,6 +79,8 @@ describe('loadConfig', () => {
     expect(config.sniper.stakeUsd).toBe(2);
     expect(config.sniper.maxOpenSnipes).toBe(5);
     expect(config.sniper.takeProfitPct).toBe(100);
+    expect(config.sniper.momentumCheckDelayMs).toBe(8000);
+    expect(config.sniper.minMomentumIncreasePct).toBe(1);
     expect(config.sniper.filters.bannedNamePatterns).toEqual([
       'test',
       'scam',

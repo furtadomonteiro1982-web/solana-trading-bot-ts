@@ -45,6 +45,8 @@
     "takeProfitPct": 100,
     "maxHoldMinutes": 5,
     "reviewIntervalSeconds": 8,
+    "momentumCheckDelayMs": 8000,
+    "minMomentumIncreasePct": 1,
     "filters": {
       "requireSocialLink": true,
       "bannedNamePatterns": ["test", "scam", "rug", "airdrop", "giveaway", "presale", "whitelist", "1000x"],

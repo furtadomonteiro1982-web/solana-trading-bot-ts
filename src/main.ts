@@ -15,6 +15,7 @@ import type { Notifier } from './notifier/notifier.js';
 import { runCycle } from './pipeline.js';
 import { createPumpPortalClient } from './sniper/pumpPortalClient.js';
 import { handleNewToken, runSniperReviewCycle, type SniperDeps } from './sniper/sniperPipeline.js';
+import { hasOrganicMomentum } from './sniper/momentumFilter.js';
 
 // Après N cycles consécutifs avec au moins une erreur, on notifie une seule fois plutôt que de
 // spammer à chaque cycle en erreur (un hoquet réseau isolé ne doit pas déclencher d'alerte).
@@ -103,11 +104,43 @@ async function main() {
         void (async () => {
           if (stopRequested) return; // arrêt en cours : la DB peut déjà être fermée
           try {
-            const prices = await priceClient.fetchPrices([event.tokenAddress]);
-            const entryPriceUsd = prices.get(event.tokenAddress);
-            if (entryPriceUsd == null) return; // pas encore indexé par Jupiter, on rate ce snipe
-            if (stopRequested) return; // re-check : l'arrêt a pu survenir pendant l'appel Jupiter
-            await handleNewToken(event, sniperDeps, entryPriceUsd);
+            const firstPrices = await priceClient.fetchPrices([event.tokenAddress]);
+            const priceAtFirstCheck = firstPrices.get(event.tokenAddress);
+            if (priceAtFirstCheck == null) return; // pas encore indexé par Jupiter, on rate ce snipe
+            if (stopRequested) return;
+
+            // Sans aucun trade organique entre les deux lectures, le prix d'une bonding curve
+            // pump.fun est parfaitement stable : ce second contrôle sert de signal gratuit de
+            // demande réelle avant d'acheter, sans dépendre du flux de trades payant de PumpPortal
+            // (qui exige une clé API et un wallet Solana financé — hors périmètre du bot).
+            await sleep(config.sniper.momentumCheckDelayMs);
+            if (stopRequested) return;
+            const secondPrices = await priceClient.fetchPrices([event.tokenAddress]);
+            const priceAtSecondCheck = secondPrices.get(event.tokenAddress);
+            if (priceAtSecondCheck == null) {
+              decisionLog.log({
+                timestamp: new Date(),
+                poolAddress: event.tokenAddress,
+                stage: 'SNIPE',
+                decision: 'REJECTED',
+                reason: 'Prix indisponible pour la vérification de momentum',
+              });
+              return;
+            }
+            if (stopRequested) return;
+
+            if (!hasOrganicMomentum(priceAtFirstCheck, priceAtSecondCheck, config.sniper.minMomentumIncreasePct)) {
+              decisionLog.log({
+                timestamp: new Date(),
+                poolAddress: event.tokenAddress,
+                stage: 'SNIPE',
+                decision: 'REJECTED',
+                reason: `Aucune activité organique détectée (prix ${priceAtFirstCheck} -> ${priceAtSecondCheck} après ${config.sniper.momentumCheckDelayMs}ms)`,
+              });
+              return;
+            }
+
+            await handleNewToken(event, sniperDeps, priceAtSecondCheck);
           } catch (error) {
             console.error('Erreur lors du traitement d\'un nouveau token pump.fun :', error);
           }

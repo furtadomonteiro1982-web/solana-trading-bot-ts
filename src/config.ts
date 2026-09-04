@@ -66,6 +66,12 @@ export const BotConfigSchema = z.object({
       takeProfitPct: z.number().positive().default(100),
       maxHoldMinutes: z.number().positive().default(15),
       reviewIntervalSeconds: z.number().positive().default(8),
+      // Après la première lecture de prix (2s après création), on revérifie une seconde fois ce
+      // délai plus tard : sans aucun trade organique entre les deux, le prix d'une bonding curve
+      // pump.fun est parfaitement stable. minMomentumIncreasePct sert de seuil anti-bruit flottant
+      // plutôt qu'une égalité stricte — voir momentumFilter.ts.
+      momentumCheckDelayMs: z.number().positive().default(8000),
+      minMomentumIncreasePct: z.number().positive().default(1),
       filters: z
         .object({
           requireSocialLink: z.boolean().default(true),
@@ -92,6 +98,8 @@ export const BotConfigSchema = z.object({
       takeProfitPct: 100,
       maxHoldMinutes: 15,
       reviewIntervalSeconds: 8,
+      momentumCheckDelayMs: 8000,
+      minMomentumIncreasePct: 1,
       filters: {
         requireSocialLink: true,
         bannedNamePatterns: ['test', 'scam', 'rug', 'airdrop', 'giveaway', 'presale', 'whitelist', '1000x'],
