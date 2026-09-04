@@ -20,7 +20,7 @@
   "risk": {
     "simulatedCapitalUsd": 100,
     "maxPositionPct": 10,
-    "maxOpenPositions": 3,
+    "maxOpenPositions": 8,
     "stopLossPct": 20,
     "takeProfitPct": 50,
     "trailingStopPct": 15
