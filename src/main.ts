@@ -83,7 +83,7 @@ async function main() {
   const decisionLog = new DecisionLogRepository(db);
   const firstSeenRepo = new FirstSeenRepository(db);
   const nearStopLossWarned = new Set<number>();
-  const executor = new PaperExecutor();
+  const executor = new PaperExecutor(config.simulation);
   notifier = createNotifier();
 
   process.on('SIGINT', () => {

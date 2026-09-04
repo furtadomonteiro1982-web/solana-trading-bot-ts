@@ -119,6 +119,16 @@ export const BotConfigSchema = z.object({
         maxCreatorInitialBuyPct: 10,
       },
     }),
+  // Coûts simulés en paper trading (slippage + frais), inspirés de solana_memecoin_bot/portfolio.py :
+  // sans ça, PaperExecutor remplit exactement au prix demandé, ce qui surestime la performance
+  // réelle. Partagé entre les deux stratégies (hourly et snipe utilisent le même PaperExecutor).
+  simulation: z
+    .object({
+      slippageInPct: z.number().nonnegative().default(3),
+      slippageOutPct: z.number().nonnegative().default(5),
+      feeUsdPerTx: z.number().nonnegative().default(0.2),
+    })
+    .default({ slippageInPct: 3, slippageOutPct: 5, feeUsdPerTx: 0.2 }),
 });
 
 export type BotConfig = z.infer<typeof BotConfigSchema>;

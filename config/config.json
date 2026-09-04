@@ -56,5 +56,10 @@
       "minCreatorInitialBuyPct": 1,
       "maxCreatorInitialBuyPct": 10
     }
+  },
+  "simulation": {
+    "slippageInPct": 3,
+    "slippageOutPct": 5,
+    "feeUsdPerTx": 0.2
   }
 }
