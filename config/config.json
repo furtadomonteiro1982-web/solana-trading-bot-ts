@@ -61,5 +61,15 @@
     "slippageInPct": 3,
     "slippageOutPct": 5,
     "feeUsdPerTx": 0.2
+  },
+  "core": {
+    "capitalUsd": 480,
+    "targets": { "BTC": 35, "ETH": 25, "SOL": 15, "BNB": 5 },
+    "dcaWeeks": 52,
+    "rebalanceThresholdPts": 5,
+    "feePct": 0.1,
+    "slippagePct": 0.1,
+    "benchmarkAsset": "BTC",
+    "binanceBaseUrl": "https://data-api.binance.vision"
   }
 }

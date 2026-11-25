@@ -114,6 +114,25 @@ de réussite et le PnL simulé. Les résultats sont une **approximation** : l'en
 clôture de la bougie historique alors que le bot en direct entre au prix spot du pool (voir les
 commentaires en tête de `src/backtest.ts`).
 
+## Rejouer le cœur long terme sur 3 ans
+
+Le cœur (voir [docs/agents.md](./docs/agents.md)) investit 480 $ simulés en 52 achats
+hebdomadaires répartis entre BTC 35 %, ETH 25 %, SOL 15 % et BNB 5 %. Les 20 % restants sont une
+réserve USDC pour les projets que la grille de notation choisira plus tard. Chaque trimestre, il
+rééquilibre si un actif s'écarte de plus de 5 points de sa part cible. Le résultat est comparé à
+BTC seul, acheté avec les mêmes achats hebdomadaires.
+
+```bash
+npm run backtest:core                       # 3 ans de prix journaliers (Binance, gratuit, sans clé)
+npm run backtest:core -- --years 2          # autre durée
+npm run backtest:core -- --save data/prix   # garde aussi les prix téléchargés en CSV
+npm run backtest:core -- --csv data/prix    # rejoue hors ligne depuis BTC.csv, ETH.csv, SOL.csv, BNB.csv
+```
+
+Les réglages sont dans la section `core` de `config/config.json` : capital, parts cibles, nombre
+d'achats, seuil de rééquilibrage, frais et slippage simulés (0,1 % chacun par défaut). Aucun ordre
+n'est passé et aucune clé n'est utilisée.
+
 ## Où sont stockés les résultats
 
 Tout est dans une base SQLite locale : `data/bot.sqlite`. Trois tables :

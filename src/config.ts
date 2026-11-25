@@ -119,6 +119,30 @@ export const BotConfigSchema = z.object({
         maxCreatorInitialBuyPct: 10,
       },
     }),
+  // Cœur long terme (voir docs/agents.md) : achats hebdomadaires répartis selon des parts cibles,
+  // rééquilibrage trimestriel. La somme des parts peut rester sous 100 % : le reste est une réserve
+  // USDC pour les projets que la grille de notation sélectionnera plus tard.
+  core: z
+    .object({
+      capitalUsd: z.number().positive().default(480),
+      targets: z.record(z.string(), z.number().min(0).max(100)).default({ BTC: 35, ETH: 25, SOL: 15, BNB: 5 }),
+      dcaWeeks: z.number().int().positive().default(52),
+      rebalanceThresholdPts: z.number().nonnegative().default(5),
+      feePct: z.number().nonnegative().default(0.1),
+      slippagePct: z.number().nonnegative().default(0.1),
+      benchmarkAsset: z.string().default('BTC'),
+      binanceBaseUrl: z.url().default('https://data-api.binance.vision'),
+    })
+    .default({
+      capitalUsd: 480,
+      targets: { BTC: 35, ETH: 25, SOL: 15, BNB: 5 },
+      dcaWeeks: 52,
+      rebalanceThresholdPts: 5,
+      feePct: 0.1,
+      slippagePct: 0.1,
+      benchmarkAsset: 'BTC',
+      binanceBaseUrl: 'https://data-api.binance.vision',
+    }),
   // Coûts simulés en paper trading (slippage + frais), inspirés de solana_memecoin_bot/portfolio.py :
   // sans ça, PaperExecutor remplit exactement au prix demandé, ce qui surestime la performance
   // réelle. Partagé entre les deux stratégies (hourly et snipe utilisent le même PaperExecutor).
