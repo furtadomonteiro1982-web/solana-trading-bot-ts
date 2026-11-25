@@ -151,10 +151,27 @@ Partout : interrupteur STOP vérifié avant chaque action
 
 Les critères chiffrés (gain minimum, perte maximale, nombre minimum de trades) sont à fixer avant de commencer.
 
+## Décisions prises
+
+- **Simulation d'abord.** Aucun portefeuille réel ni aucune clé tant que les étapes 1 et 2 ne sont pas validées.
+- **Pas d'API X.** Le Chasseur s'appuie sur la recherche web (qui trouve une partie des tweets) et sur les agrégateurs (DexScreener, Birdeye, pump.fun).
+- **Un mélange TypeScript et Claude**, avec une règle : **tout ce qui touche à l'argent est du code TypeScript déterministe.** Claude cherche, résume et rédige ; il ne décide jamais d'un trade, d'une taille ou d'un stop. Cela permet aussi de tester les stratégies sur le passé : un raisonnement de Claude ne se rejoue pas de façon fiable sur des données anciennes.
+
+## Qui fait quoi : TypeScript ou Claude
+
+| Agent | TypeScript | Claude | Code déjà présent dans le dépôt |
+|---|---|---|---|
+| **Éclaireur** | prix, volumes, liquidité, pools | résumé du contexte du jour (actualités) | `src/scanner.ts`, `src/geckoterminal/`, `src/birdeye/`, `src/marketdata/` |
+| **Chasseur** | flux pump.fun, filtres de base | recherche web, note de bruit social, sources | `src/sniper/pumpPortalClient.ts`, `src/sniper/snipeFilter.ts` |
+| **Analyste** | stratégies et indicateurs (seuls à produire des propositions) | note qualitative sur les pépites, qui ne peut que **réduire** la confiance | `src/signal.ts`, `src/indicators/`, `src/sniper/momentumFilter.ts` |
+| **Gardien** | 100 % | — | `src/risk.ts`, `src/sniper/snipeRisk.ts`, `src/filter.ts` |
+| **Exécutant** | 100 % (simulation) | — | `src/executor/paperExecutor.ts` |
+| **Veilleur** | 100 % | — | `src/positionManager.ts`, `src/sniper/timeoutManager.ts` |
+| **Comptable** | calcul du P&L, des frais et des statistiques | rédaction du rapport du soir | `src/store/`, `src/notifier/telegramNotifier.ts`, `src/backtest.ts` |
+
 ## Encore à définir avant de coder
 
 1. Les limites de risque : perte maximale par trade et par jour, exposition maximale totale.
-2. L'accès à X : API payante, ou seulement recherche web et agrégateurs.
-3. La forme des agents : code TypeScript dans ce dépôt, agents Claude, ou un mélange des deux.
+2. Les critères chiffrés de passage entre les étapes (test sur le passé, simulation, réel).
 
 > Mise en garde : la plupart des bots de trading perdent de l'argent, surtout sur les pépites. Ce système sert d'abord à limiter les pertes et à mesurer si une stratégie fonctionne. Il ne garantit aucun gain.
