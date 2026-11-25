@@ -1,177 +1,158 @@
-# Système de trading à 6 agents + 1 Veilleur
+# Système hybride à 6 agents + 1 Veilleur
 
 Fiche de référence des rôles. Statut : **rôles définis, rien n'est encore codé.**
 
-## Périmètre
+Le système gère deux budgets séparés :
 
-- **Phase 1 : Solana uniquement.**
-  - Jetons suivis : les 20 jetons les plus liquides (recalculés chaque semaine, sans stablecoins), plus les pépites repérées par le Chasseur.
-  - Monnaie de base : USDC.
-  - DEX : Jupiter (agrégateur), Raydium, Orca.
-  - Nouveaux lancements : pump.fun et nouveaux pools Raydium.
-  - Explorateur : Solscan.
-- **Phase 2 : Ethereum et BNB Chain**, une fois la phase 1 validée en réel. Les règles prévues pour eux restent dans cette fiche, marquées *(phase 2)*.
+- le **cœur** (long terme), qui achète progressivement des projets solides et les garde pendant des années ;
+- le **satellite** (trading), qui cherche des gains plus rapides avec les stratégies déjà présentes dans ce dépôt.
 
-| Phase 2 | Ethereum | BNB Chain |
-|---|---|---|
-| DEX principaux | Uniswap, Curve (agrégateur : 1inch) | PancakeSwap |
-| Explorateur | Etherscan | BscScan |
-| Coût d'une transaction | élevé | faible |
+> Mise en garde : ce système cherche, compare, documente et simule. Ses analyses ne sont pas un conseil financier, et la décision d'acheter reste celle du propriétaire. Même les cryptos majeures ont déjà perdu 70 à 80 % de leur valeur lors de baisses passées. La plupart des bots de trading perdent de l'argent, surtout sur les pépites.
 
-## Règles communes à tous les agents
+## Décisions prises
 
+| Sujet | Décision |
+|---|---|
+| Mode | **Simulation d'abord.** Aucun portefeuille réel ni aucune clé tant que les étapes de validation ne sont pas passées. |
+| Répartition | **80 % cœur / 20 % satellite.** |
+| Capital simulé | 600 $ au total : **480 $ pour le cœur**, **120 $ pour le satellite** (les 100 $ de trading et les 20 $ du sniper déjà configurés dans `config/config.json`). |
+| Horizon du cœur | **3 à 5 ans**, avec une revue complète chaque année. |
+| Univers du cœur | **BTC, ETH, SOL, BNB**, plus quelques projets sélectionnés par la grille de notation. |
+| Univers du satellite | **Solana uniquement** en phase 1 ; Ethereum et BNB Chain en phase 2. |
+| Rôle pour le cœur | Le système **simule les achats progressifs** et **produit une liste argumentée**. Le propriétaire reste libre d'acheter à la main ce qu'il veut, en dehors du système. |
+| Accès à X | **Pas d'API X.** Recherche web (qui trouve une partie des tweets) et agrégateurs (DexScreener, Birdeye, pump.fun). |
+| Technique | **Un mélange TypeScript et Claude.** Tout ce qui touche à l'argent (montants, tailles, stops, achats) est du code TypeScript déterministe. Claude cherche, lit, résume et rédige ; il ne décide jamais d'un achat ni d'un montant. |
+
+## Règles communes
+
+- **Budgets étanches :** le satellite ne peut **jamais** puiser dans le cœur. S'il perd tout, le cœur reste intact. Les gains du satellite ne vont dans le cœur que sur décision du propriétaire.
 - **Arrêt d'urgence :** chaque agent vérifie l'interrupteur `STOP` avant toute action. S'il est activé, plus rien ne s'exécute. Seul le propriétaire peut le désactiver.
 - **Seul le propriétaire change les règles.** Les agents peuvent suggérer, jamais modifier.
-- **Chaque décision est enregistrée** avec sa raison et ses sources.
+- **Chaque décision est enregistrée** dans le journal (base SQLite) avec sa raison et ses sources.
 
 ---
 
-## 1. Éclaireur — veille des marchés
+## Règles du cœur (long terme)
 
-- **Rôle :** collecter chaque matin les faits sur Solana.
-- **Ce qu'il collecte :**
-  - prix, volume sur 24 h et liquidité de chaque jeton suivi ;
-  - activité on-chain : gros transferts, entrées et sorties des plateformes d'échange, nouveaux pools importants ;
-  - contexte général : tendance du marché, dominance de BTC, événements du jour.
-- **Il produit :** un rapport de marché daté, avec ses sources.
+**Répartition cible du cœur :**
+
+| Part | Contenu |
+|---|---|
+| 35 % | BTC |
+| 25 % | ETH |
+| 15 % | SOL |
+| 5 % | BNB |
+| 20 % | projets sélectionnés par la grille, **5 % maximum par projet** |
+
+- **Achats progressifs (DCA) :** les 480 $ sont investis en 52 achats hebdomadaires d'environ 9,20 $, répartis selon la cible.
+- **Rééquilibrage :** vérifié chaque trimestre ; on rééquilibre seulement si une part s'écarte de plus de 5 points de sa cible.
+- **Pas de stop serré.** On ne vend pas sur une baisse de prix. On allège ou on sort un projet seulement si sa **note** baisse sous le seuil, ou en cas d'événement grave (piratage, fraude, problème réglementaire).
+- **Conditions d'entrée d'un projet hors des quatre majeurs :** audit de sécurité publié, liquidité suffisante, au moins 1 an d'existence, pas de gros déblocage de jetons dans les 6 mois.
+- **Référence à battre :** BTC seul, acheté avec les mêmes achats progressifs.
+
+## Règles du satellite (trading)
+
+- Perte maximale par trade : environ 2 % du capital du satellite (stop à −20 % sur une position de 10 %).
+- **Perte maximale par jour : 5 %** du capital du satellite, puis coupe-circuit jusqu'au lendemain.
+- **Exposition maximale totale : 50 %** du capital du satellite.
+- Pépites (sniper pump.fun) : budget à part de 20 $, mise de 2 $, stop à −40 %.
+
+---
+
+## 1. Éclaireur — données
+
+- **Pour le cœur, chaque semaine :** revenus et frais générés par chaque protocole, utilisateurs actifs, valeur bloquée (TVL), activité des développeurs, prix.
+- **Pour le satellite, chaque jour :** prix, volume sur 24 h et liquidité des jetons Solana suivis, nouveaux pools importants.
+- **Il produit :** un rapport daté, avec ses sources.
 - **Interdits :** donner une opinion, passer un ordre.
+- **Technique :** TypeScript pour les chiffres (`src/scanner.ts`, `src/geckoterminal/`, `src/birdeye/`, `src/marketdata/`) ; Claude pour le résumé des actualités.
 
-## 2. Chasseur de pépites — web et X
+## 2. Chercheur et Chasseur — web
 
-- **Rôle :** repérer les jetons Solana qui démarrent et ceux dont on parle de plus en plus.
-- **Où il cherche :** X, actualités crypto, DexScreener, Birdeye, pump.fun.
-- **Il produit :** des candidats, avec pour chacun :
-  - l'adresse vérifiée du jeton (*mint*) et son âge ;
-  - la raison du buzz et les liens vers les sources ;
-  - une note de bruit social.
-- **Interdits :**
-  - recommander un achat ;
-  - transmettre un jeton sans son adresse ;
-  - s'appuyer sur une seule source ;
-  - scraper X en violation de ses conditions d'utilisation.
+- **Chercheur, pour le cœur :** lit les documents des projets (whitepaper, feuille de route), les audits de sécurité, les annonces de déblocages de jetons et l'actualité réglementaire. Il repère les projets qui gagnent vraiment des utilisateurs, et non ceux qui font seulement du bruit.
+- **Chasseur, pour le satellite :** repère les jetons Solana qui démarrent et ceux dont on parle de plus en plus (web, DexScreener, Birdeye, pump.fun).
+- **Il produit :** des fiches de projet ou des candidats, avec l'adresse vérifiée du jeton, les liens vers les sources et une note de bruit social.
+- **Interdits :** recommander un achat, transmettre un jeton sans son adresse, s'appuyer sur une seule source, scraper X en violation de ses conditions d'utilisation.
+- **Technique :** Claude pour la recherche et la lecture ; TypeScript pour le flux pump.fun et les filtres de base (`src/sniper/pumpPortalClient.ts`, `src/sniper/snipeFilter.ts`).
 
-## 3. Analyste — stratégie
+## 3. Analyste — notation et stratégies
 
-- **Rôle :** croiser les faits de l'Éclaireur et les candidats du Chasseur, puis appliquer les stratégies.
-- **Il produit :** des propositions de trades. Pour chacune :
-  - jeton, sens (achat ou vente) ;
-  - prix d'entrée, stop, objectif ;
-  - justification et niveau de confiance ;
-  - catégorie : **majeur** ou **pépite**.
-- **Interdits :** choisir la taille de position, exécuter, proposer un jeton sans liquidité suffisante.
-- **Condition :** seules les stratégies **validées par le test sur le passé** peuvent être utilisées (voir « Avant le réel »).
+- **Pour le cœur :** note chaque projet sur une grille fixe (utilité réelle, revenus, *tokenomics* : inflation, déblocages, répartition ; équipe, concurrence, sécurité) et produit une liste classée et argumentée.
+- **Pour le satellite :** applique les stratégies de trading et propose des trades (jeton, sens, entrée, stop, objectif, justification, confiance).
+- **Interdits :** choisir un montant, exécuter.
+- **Technique :** Claude rédige les arguments de la grille, mais **la note finale est calculée en TypeScript** à partir de critères chiffrés. Pour le satellite, seules les stratégies TypeScript validées par le test sur le passé produisent des propositions (`src/signal.ts`, `src/indicators/`, `src/sniper/momentumFilter.ts`) ; la note de Claude sur une pépite peut seulement **réduire** la confiance.
 
-## 4. Gardien — risque, avec droit de veto
+## 4. Gardien — règles, avec droit de veto
 
-- **Rôle :** accepter, réduire ou refuser chaque proposition.
-- **Règles générales :**
-  - perte maximale par trade et par jour *(à définir)* ;
-  - exposition maximale totale et par jeton *(à définir)* ;
-  - liquidité minimale ;
-  - liste de jetons interdits ;
-  - coupe-circuit quotidien.
-- **Contrôles de sécurité Solana :**
-  - *mint authority* et *freeze authority* révoquées ;
-  - liquidité verrouillée ou brûlée ;
-  - concentration des plus gros portefeuilles ;
-  - âge minimum du pool.
-- **Contrôles Ethereum et BNB Chain *(phase 2)* :**
-  - vérifier que le jeton n'est pas un *honeypot* (achetable mais pas revendable) ;
-  - vérifier les taxes à l'achat et à la vente ;
-  - vérifier la propriété du contrat : abandonnée, ou non ;
-  - repérer les fonctions de blocage (*blacklist*), de pause ou de création de jetons (*mint*) ;
-  - vérifier si le contrat est modifiable (*proxy*) ;
-  - Ethereum : taille minimale de trade, pour que les frais ne mangent pas le gain.
-- **Règle particulière :** pour les pépites, la taille de position est réduite à 10 à 20 % de la taille normale.
+- **Pour le cœur :** fait respecter la répartition cible, les 5 % maximum par projet et les conditions d'entrée.
+- **Pour le satellite :** perte maximale par trade et par jour, exposition maximale, liquidité minimale, jetons interdits, coupe-circuit.
+- **Pour les deux :** fait respecter l'**étanchéité des budgets**.
+- **Contrôles de sécurité Solana :** *mint authority* et *freeze authority* révoquées, liquidité verrouillée ou brûlée, concentration des plus gros portefeuilles, âge minimum du pool.
+- **Contrôles Ethereum et BNB Chain *(phase 2)* :** pas de *honeypot* (jeton achetable mais pas revendable), taxes à l'achat et à la vente, propriété du contrat, fonctions de blocage, de pause ou de création de jetons, contrat modifiable (*proxy*) ; sur Ethereum, taille minimale de trade à cause des frais.
 - **Il produit :** une décision et sa raison pour chaque proposition.
 - **Interdits :** créer des trades, assouplir une règle.
+- **Technique :** 100 % TypeScript (`src/risk.ts`, `src/sniper/snipeRisk.ts`, `src/filter.ts`).
 
-## 5. Exécutant — ordres
+## 5. Exécutant — achats et ordres
 
-- **Rôle :** exécuter uniquement les ordres validés, par Jupiter.
-- **Ce qu'il gère :** slippage, frais, confirmation de la transaction.
-- **Il enregistre aussi** le stop et l'objectif de chaque position, pour que le Veilleur puisse les surveiller.
-- **Protection MEV :** les transactions passent par **Jito**, avec un slippage maximal strict. *(Phase 2 : Ethereum par un RPC privé, comme Flashbots Protect.)*
-- **Portefeuille dédié :**
-  - un portefeuille réservé au bot, jamais le portefeuille principal ;
-  - il ne contient que le montant que l'on accepte de perdre ;
-  - la clé privée est un secret hors du code, et seul l'Exécutant y a accès ;
-  - *(phase 2)* sur Ethereum et BNB Chain, autorisations (*approvals*) limitées et révoquées régulièrement.
-- **Mode :** **simulation par défaut**. Le passage au réel est un réglage que seul le propriétaire modifie.
-- **Il produit :** le journal des ordres : signature de transaction, prix obtenu, frais, écart avec le prix prévu.
-- **Interdits :** modifier un ordre, trader sans validation, exposer la clé.
+- **Pour le cœur :** exécute les achats progressifs hebdomadaires et les rééquilibrages validés.
+- **Pour le satellite :** exécute uniquement les ordres validés, par Jupiter ; gère le slippage, les frais et la confirmation ; enregistre le stop et l'objectif pour le Veilleur.
+- **Mode :** **simulation par défaut.** Le passage au réel est un réglage que seul le propriétaire modifie.
+- **Quand on passera au réel :**
+  - portefeuille dédié, jamais le portefeuille principal, avec seulement le montant que l'on accepte de perdre ;
+  - clé privée gardée comme secret hors du code, accessible au seul Exécutant ;
+  - protection MEV : transactions par **Jito** sur Solana, avec un slippage maximal strict *(phase 2 : RPC privé comme Flashbots Protect sur Ethereum ; autorisations des contrats limitées et révoquées régulièrement)*.
+- **Il produit :** le journal des ordres (prix obtenu, frais, écart avec le prix prévu).
+- **Interdits :** modifier un ordre, agir sans validation, exposer une clé.
+- **Technique :** 100 % TypeScript (`src/executor/paperExecutor.ts`).
 
-## 6. Comptable — rapport et audit
+## 6. Comptable — rapports
 
-- **Rôle :** clôturer la journée.
-- **Il produit :**
-  - le P&L total et par catégorie (majeur ou pépite) ;
-  - les positions ouvertes ;
-  - la comparaison entre prévu et réalisé ;
-  - les frais payés ;
-  - les erreurs et refus de chaque agent ;
-  - les déclenchements du Veilleur ;
-  - des suggestions pour le lendemain.
+- **Pour le cœur, chaque mois :** valeur du portefeuille, performance comparée à la référence (BTC seul), évolution des notes de chaque projet, raisons de garder ou d'alléger.
+- **Pour le satellite, chaque jour :** P&L, positions ouvertes, prévu contre réalisé, frais, refus du Gardien, déclenchements du Veilleur.
+- **Toujours :** les résultats des deux budgets sont séparés, pour savoir si le trading rapporte vraiment plus que le long terme seul.
 - **Interdits :** changer les règles ou les stratégies.
+- **Technique :** TypeScript pour les calculs (`src/store/`, `src/backtest.ts`) ; Claude pour la rédaction ; envoi par Telegram (`src/notifier/telegramNotifier.ts`).
 
-## 7. Veilleur — surveillance en continu
+## 7. Veilleur — surveillance
 
-C'est un **programme simple**, pas un agent qui raisonne. Il tourne en permanence, 24 h/24.
+C'est un **programme simple**, pas un agent qui raisonne. Il tourne en permanence.
 
-- **Rôle :** surveiller toutes les positions ouvertes, toutes les minutes.
-- **Il déclenche :**
-  - les **stops** et les **objectifs**, en envoyant un ordre de vente à l'Exécutant ;
-  - le **coupe-circuit** quand la perte maximale du jour est atteinte ;
-  - l'**arrêt d'urgence** en cas d'anomalie : prix incohérent, réseau indisponible, perte soudaine.
+- **Pour le satellite, toutes les minutes :** déclenche les stops et les objectifs, et le coupe-circuit quand la perte maximale du jour est atteinte.
+- **Pour le cœur :** alerte seulement sur les événements graves (piratage d'un protocole, dépeg d'un stablecoin, problème réglementaire, chute brutale de l'activité d'un projet). Il **alerte**, il ne vend pas : la décision revient à la revue du cœur.
+- **Pour les deux :** arrêt d'urgence en cas d'anomalie (prix incohérent, réseau indisponible).
 - **Interdits :** ouvrir une position, modifier un stop.
+- **Technique :** 100 % TypeScript (`src/positionManager.ts`, `src/sniper/timeoutManager.ts`).
 
 ---
 
-## Cycle quotidien
+## Rythme
 
 ```
-           ┌──────────── Veilleur (24 h/24 : stops, coupe-circuit) ────────────┐
-           │                                                                  │
-Matin   Éclaireur (faits)  +  Chasseur (pépites)                              │
-          └──────────┬──────────┘                                             │
-Midi             Analyste ──▶ Gardien ──▶ Exécutant ◀─────────────────────────┘
-                                              │
-Soir                                      Comptable ──▶ rapport
+                  Veilleur (satellite : chaque minute ; cœur : alertes graves)
+                                          │
+CŒUR (chaque semaine)                      │
+  Éclaireur + Chercheur ─▶ Analyste (grille) ─▶ Gardien ─▶ Exécutant (achat DCA)
+                                                              │
+SATELLITE (chaque jour)                                       │
+  Éclaireur + Chasseur ─▶ Analyste (stratégies) ─▶ Gardien ─▶ Exécutant (ordres)
+                                                              │
+                     Comptable : rapport quotidien (satellite), mensuel (cœur)
 
 Partout : interrupteur STOP vérifié avant chaque action
 ```
 
 ## Avant le réel : les trois étapes
 
-| Étape | Durée | Condition pour passer à la suivante |
+| Étape | Cœur | Satellite |
 |---|---|---|
-| **1. Test sur le passé** | plusieurs mois de données passées | gain positif après frais, perte maximale sous la limite fixée |
-| **2. Simulation** | au moins 30 jours | mêmes critères, et l'écart entre prévu et réalisé reste acceptable |
-| **3. Réel, petit montant** | portefeuille dédié avec peu de fonds | décision explicite du propriétaire, après les rapports du Comptable |
+| **1. Test sur le passé** | rejouer les achats progressifs et la grille sur 3 ans de données | rejouer les stratégies sur plusieurs mois |
+| **2. Simulation** | au moins 3 mois | au moins 30 jours |
+| **3. Réel, petit montant** | décision explicite du propriétaire | décision explicite du propriétaire |
 
-Les critères chiffrés (gain minimum, perte maximale, nombre minimum de trades) sont à fixer avant de commencer.
+**Critères pour passer d'une étape à la suivante :**
 
-## Décisions prises
+- **Cœur :** pendant le test sur le passé, la baisse maximale reste comparable à celle de BTC seul ou meilleure, et aucune règle du Gardien n'a été violée. On ne demande pas au cœur de battre BTC sur 3 mois : la période est trop courte pour juger un placement de 3 à 5 ans.
+- **Satellite :** au moins 30 trades, gain positif **après frais**, perte maximale d'une journée sous 5 %, et un écart moyen entre prix prévu et prix obtenu sous 2 %.
 
-- **Simulation d'abord.** Aucun portefeuille réel ni aucune clé tant que les étapes 1 et 2 ne sont pas validées.
-- **Pas d'API X.** Le Chasseur s'appuie sur la recherche web (qui trouve une partie des tweets) et sur les agrégateurs (DexScreener, Birdeye, pump.fun).
-- **Un mélange TypeScript et Claude**, avec une règle : **tout ce qui touche à l'argent est du code TypeScript déterministe.** Claude cherche, résume et rédige ; il ne décide jamais d'un trade, d'une taille ou d'un stop. Cela permet aussi de tester les stratégies sur le passé : un raisonnement de Claude ne se rejoue pas de façon fiable sur des données anciennes.
-
-## Qui fait quoi : TypeScript ou Claude
-
-| Agent | TypeScript | Claude | Code déjà présent dans le dépôt |
-|---|---|---|---|
-| **Éclaireur** | prix, volumes, liquidité, pools | résumé du contexte du jour (actualités) | `src/scanner.ts`, `src/geckoterminal/`, `src/birdeye/`, `src/marketdata/` |
-| **Chasseur** | flux pump.fun, filtres de base | recherche web, note de bruit social, sources | `src/sniper/pumpPortalClient.ts`, `src/sniper/snipeFilter.ts` |
-| **Analyste** | stratégies et indicateurs (seuls à produire des propositions) | note qualitative sur les pépites, qui ne peut que **réduire** la confiance | `src/signal.ts`, `src/indicators/`, `src/sniper/momentumFilter.ts` |
-| **Gardien** | 100 % | — | `src/risk.ts`, `src/sniper/snipeRisk.ts`, `src/filter.ts` |
-| **Exécutant** | 100 % (simulation) | — | `src/executor/paperExecutor.ts` |
-| **Veilleur** | 100 % | — | `src/positionManager.ts`, `src/sniper/timeoutManager.ts` |
-| **Comptable** | calcul du P&L, des frais et des statistiques | rédaction du rapport du soir | `src/store/`, `src/notifier/telegramNotifier.ts`, `src/backtest.ts` |
-
-## Encore à définir avant de coder
-
-1. Les limites de risque : perte maximale par trade et par jour, exposition maximale totale.
-2. Les critères chiffrés de passage entre les étapes (test sur le passé, simulation, réel).
-
-> Mise en garde : la plupart des bots de trading perdent de l'argent, surtout sur les pépites. Ce système sert d'abord à limiter les pertes et à mesurer si une stratégie fonctionne. Il ne garantit aucun gain.
+Le propriétaire peut modifier tous ces chiffres. Ce sont des propositions de départ.
