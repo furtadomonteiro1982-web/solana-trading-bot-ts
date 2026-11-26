@@ -74,10 +74,11 @@
     "minVolume24hUsd": 1000000,
     "minAgeDays": 365,
     "hackLookbackDays": 365,
+    "maxTvlDropVsMarketPct": 30,
     "minCirculatingPct": 50,
     "picks": 4,
     "pctEach": 5,
-    "historyShortlist": 12,
+    "historyShortlist": 20,
     "excludedGeckoIds": ["bitcoin", "ethereum", "solana", "binancecoin", "tether", "usd-coin", "dai", "usds", "ethena-usde", "first-digital-usd", "paypal-usd", "wrapped-bitcoin", "weth", "staked-ether", "wrapped-steth"],
     "excludedCategories": ["CEX", "Chain"]
   },

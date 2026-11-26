@@ -25,7 +25,7 @@ export function formatGrilleReport(
           .join('')
     );
   });
-  lines.push('     (maximum : 100 = revenus 30 + adoption 25 + tokenomics 20 + marché 15 + sécurité 10)');
+  lines.push('     (maximum : 100 = revenus 25 + adoption 30 + tokenomics 20 + marché 15 + sécurité 10)');
 
   lines.push('');
   if (picks.length === 0) {

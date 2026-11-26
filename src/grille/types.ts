@@ -54,6 +54,11 @@ export interface GrilleSettings {
   minVolume24hUsd: number;
   minAgeDays: number;
   hackLookbackDays: number;
+  /**
+   * Exclusion si la TVL a perdu, sur 6 mois, plus que ce nombre de points par rapport à toute la
+   * DeFi : les utilisateurs quittent le projet.
+   */
+  maxTvlDropVsMarketPct: number;
   /** Part minimale de l'offre déjà en circulation (indicateur de déblocages à venir), en %. */
   minCirculatingPct: number;
   /** Nombre de projets retenus, et part du cœur donnée à chacun (en % du capital du cœur). */
@@ -63,6 +68,12 @@ export interface GrilleSettings {
   historyShortlist: number;
   excludedGeckoIds: string[];
   excludedCategories: string[];
+}
+
+/** Données de marché communes à tous les projets. */
+export interface GrilleContext {
+  /** Évolution de la TVL totale de la DeFi sur 6 mois, en %. Absente : comparaison brute. */
+  defiTvlChange6mPct?: number;
 }
 
 export interface ScoreParts {

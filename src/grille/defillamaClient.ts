@@ -64,6 +64,18 @@ export class DefiLlamaClient {
     return (await this.get('/hacks')) as LlamaHack[];
   }
 
+  /** Évolution de la TVL totale de la DeFi sur `days` jours, en %, ou null sans historique. */
+  async fetchDefiTvlChangePct(days: number): Promise<number | null> {
+    const points = (await this.get('/v2/historicalChainTvl')) as { date: number; tvl: number }[];
+    if (!Array.isArray(points) || points.length === 0) return null;
+    const before = tvlDaysAgo(
+      points.map((point) => ({ date: point.date, totalLiquidityUSD: point.tvl })),
+      days
+    );
+    const last = points[points.length - 1]!.tvl;
+    return before && before > 0 ? (last / before - 1) * 100 : null;
+  }
+
   /** TVL du projet `daysAgo` jours avant le dernier point connu, ou null sans historique. */
   async fetchTvlDaysAgo(slug: string, daysAgo: number): Promise<number | null> {
     const json = (await this.get(`/protocol/${encodeURIComponent(slug)}`)) as {

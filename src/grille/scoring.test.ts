@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allocate, circulatingShare, entryRejections, rankCandidates, scoreCandidate } from './scoring.js';
+import { allocate, circulatingShare, entryRejections, rankCandidates, scoreCandidate, tvlChangeVsMarketPct } from './scoring.js';
 import { candidate, now, settings } from './testFixtures.js';
 
 const withMarket = (overrides: object) => candidate({ market: { ...candidate().market!, ...overrides } });
@@ -24,8 +24,37 @@ describe('entryRejections', () => {
     expect(reasons.some((reason) => reason.startsWith(kind))).toBe(true);
   });
 
+  it('exclut un projet dont la TVL perd plus de 30 % par rapport au marché sur 6 mois', () => {
+    // −50 % en brut quand la DeFi fait −10 % : environ −44 % par rapport au marché.
+    const leaving = candidate({ tvlUsd: 500e6, tvl6mAgoUsd: 1e9 });
+
+    const reasons = entryRejections(leaving, settings, now, { defiTvlChange6mPct: -10 });
+
+    expect(reasons.some((reason) => reason.startsWith('fuite des utilisateurs : TVL -44 %'))).toBe(true);
+  });
+
+  it('garde un projet qui baisse avec le marché', () => {
+    const followsMarket = candidate({ tvlUsd: 750e6, tvl6mAgoUsd: 1e9 });
+
+    expect(entryRejections(followsMarket, settings, now, { defiTvlChange6mPct: -30 })).toEqual([]);
+  });
+
   it('tolère un piratage de plus de 12 mois', () => {
     expect(entryRejections(candidate({ hacks: [{ date: '2024-01-01', amountUsd: 1e6 }] }), settings, now)).toEqual([]);
+  });
+});
+
+describe('tvlChangeVsMarketPct', () => {
+  it("compare l'évolution du projet à celle de toute la DeFi", () => {
+    const project = candidate({ tvlUsd: 900e6, tvl6mAgoUsd: 1e9 }); // −10 % en brut
+
+    expect(tvlChangeVsMarketPct(project, { defiTvlChange6mPct: -10 })).toBeCloseTo(0);
+    expect(tvlChangeVsMarketPct(project, { defiTvlChange6mPct: 20 })).toBeCloseTo(-25);
+    expect(tvlChangeVsMarketPct(project)).toBeCloseTo(-10); // marché inconnu : comparaison brute
+  });
+
+  it("renvoie null sans historique", () => {
+    expect(tvlChangeVsMarketPct(candidate())).toBeNull();
   });
 });
 
@@ -43,8 +72,8 @@ describe('scoreCandidate', () => {
   it('reste entre 0 et 100, chaque partie sous son maximum', () => {
     const { parts, total } = scoreCandidate(candidate({ tvl6mAgoUsd: 100_000_000 }), settings, now);
 
-    expect(parts.revenus).toBeLessThanOrEqual(30);
-    expect(parts.adoption).toBeLessThanOrEqual(25);
+    expect(parts.revenus).toBeLessThanOrEqual(25);
+    expect(parts.adoption).toBeLessThanOrEqual(30);
     expect(parts.tokenomics).toBeLessThanOrEqual(20);
     expect(parts.marche).toBeLessThanOrEqual(15);
     expect(parts.securite).toBeLessThanOrEqual(10);
@@ -53,11 +82,21 @@ describe('scoreCandidate', () => {
   });
 
   it('donne le maximum des revenus quand la capitalisation vaut 5 fois les revenus ou moins', () => {
-    expect(scoreCandidate(candidate({ revenue1yUsd: 200_000_000 }), settings, now).parts.revenus).toBeCloseTo(30);
+    expect(scoreCandidate(candidate({ revenue1yUsd: 200_000_000 }), settings, now).parts.revenus).toBeCloseTo(25);
   });
 
   it('ne donne aucun point de revenus à un projet sans revenus', () => {
     expect(scoreCandidate(candidate({ revenue1yUsd: 0 }), settings, now).parts.revenus).toBe(0);
+  });
+
+  it('ne pénalise pas un projet qui baisse comme le marché', () => {
+    const project = candidate({ tvlUsd: 800e6, tvl6mAgoUsd: 1e9 });
+
+    const vsMarket = scoreCandidate(project, settings, now, { defiTvlChange6mPct: -20 }).parts.adoption;
+    // Même TVL actuelle, sans historique : évolution comptée neutre.
+    const neutral = scoreCandidate(candidate({ tvlUsd: 800e6 }), settings, now).parts.adoption;
+
+    expect(vsMarket).toBeCloseTo(neutral);
   });
 
   it("récompense une TVL en hausse sur 6 mois et compte neutre une évolution inconnue", () => {

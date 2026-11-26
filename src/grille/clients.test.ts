@@ -34,6 +34,17 @@ describe('DefiLlamaClient', () => {
   });
 });
 
+describe('fetchDefiTvlChangePct', () => {
+  it("calcule l'évolution de la TVL totale de la DeFi", async () => {
+    const day = 86_400;
+    const points = [0, 100, 200].map((d) => ({ date: d * day, tvl: d === 0 ? 50 : d === 100 ? 100 : 90 }));
+    const client = new DefiLlamaClient('https://exemple.test', async () => respond(points));
+
+    expect(await client.fetchDefiTvlChangePct(100)).toBeCloseTo(-10);
+    expect(await client.fetchDefiTvlChangePct(500)).toBeNull();
+  });
+});
+
 describe('fetchMarkets', () => {
   const row = {
     id: 'foo',

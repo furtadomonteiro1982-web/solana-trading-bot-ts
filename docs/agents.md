@@ -64,17 +64,20 @@ Elle choisit les projets qui reçoivent la part « projets » du cœur (4 projet
 | Audit de sécurité | audit déclaré sur DefiLlama (niveau 2 ou plus) ; liens à vérifier par le Chercheur |
 | Liquidité | volume sur 24 h d'au moins 1 M$ |
 | Pas de piratage récent | aucun piratage recensé par DefiLlama dans les 12 derniers mois |
+| Pas de fuite des utilisateurs | la TVL n'a pas perdu plus de 30 % **par rapport à toute la DeFi** sur 6 mois (vérifié pour les 20 premiers, dont l'historique est chargé) |
 | Pas de gros déblocage à venir | au moins 50 % de l'offre maximale (ou totale) déjà en circulation. C'est un indicateur : le calendrier exact des déblocages sur 6 mois reste à vérifier par le Chercheur |
 
 **Note sur 100**, calculée en TypeScript :
 
 | Critère | Points | Échelle |
 |---|---|---|
-| Revenus | 30 | capitalisation divisée par les revenus annuels : 5 ou moins → 30, 200 ou plus → 0 |
-| Adoption | 25 | taille de la TVL (10 : 10 M$ → 0, 10 Md$ → 10) et son évolution sur 6 mois (15 : −50 % → 0, +50 % → 15). L'évolution n'est chargée que pour les 12 premiers ; ailleurs elle compte neutre (7,5) |
+| Revenus | 25 | capitalisation divisée par les revenus annuels : 5 ou moins → 25, 200 ou plus → 0 |
+| Adoption | 30 | taille de la TVL (10 : 10 M$ → 0, 10 Md$ → 10) et son évolution sur 6 mois **par rapport à toute la DeFi** (20 : −50 % → 0, +50 % → 20). L'évolution n'est chargée que pour les 20 premiers ; ailleurs elle compte neutre (10) |
 | Tokenomics | 20 | part de l'offre en circulation : 40 % → 0, 100 % → 20 |
 | Marché | 15 | volume sur 24 h (7,5 : 1 M$ → 0, 100 M$ → 7,5) et ancienneté de cotation (7,5 : 1 an → 0, 5 ans → 7,5) |
 | Sécurité | 10 | audit déclaré (5) et aucun piratage dans l'historique (5 ; 2 si les piratages ont plus d'un an) |
+
+**Pourquoi comparer au marché :** la TVL se compte en dollars et baisse quand les cryptos baissent. Sans comparaison, une baisse générale pénaliserait tous les projets de la même façon. Le 26 novembre 2026, la TVL totale de la DeFi avait perdu 10 % en 6 mois : un projet à −8 % faisait donc un peu mieux que le marché, tandis que Sky (−46 % par rapport au marché) perdait réellement ses utilisateurs. Le partage 25 / 30 entre revenus et adoption reste un choix de jugement, qu'aucune donnée ne valide.
 
 Chaque exécution enregistre le détail dans `data/grille/AAAA-MM-JJ.json`. **La grille ne peut pas être testée honnêtement sur le passé** (données de fond anciennes indisponibles date par date, et biais du survivant) : elle sera jugée en simulation, chaque trimestre, en comparant les projets retenus au fait de garder ces 20 % en USDC ou de les mettre en BTC.
 

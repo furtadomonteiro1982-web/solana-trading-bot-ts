@@ -7,10 +7,11 @@ export const settings: GrilleSettings = {
   minVolume24hUsd: 1_000_000,
   minAgeDays: 365,
   hackLookbackDays: 365,
+  maxTvlDropVsMarketPct: 30,
   minCirculatingPct: 50,
   picks: 4,
   pctEach: 5,
-  historyShortlist: 12,
+  historyShortlist: 20,
   excludedGeckoIds: ['bitcoin', 'ethereum', 'tether'],
   excludedCategories: ['CEX', 'Chain'],
 };

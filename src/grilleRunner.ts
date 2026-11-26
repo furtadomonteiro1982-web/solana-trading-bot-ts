@@ -49,7 +49,18 @@ async function main() {
     if (errors.length > 0) console.warn(`  ${scored.candidate.name} : historique indisponible (${errors.join(' ; ')})`);
   }
 
-  const ranked = rankCandidates(candidates, settings, now);
+  let context = {};
+  try {
+    const change = await llama.fetchDefiTvlChangePct(182);
+    if (change !== null) {
+      context = { defiTvlChange6mPct: change };
+      console.log(`TVL totale de la DeFi sur 6 mois : ${change >= 0 ? '+' : ''}${change.toFixed(1)} %.`);
+    }
+  } catch (error) {
+    console.warn(`TVL totale de la DeFi indisponible, évolutions comparées en brut (${String(error)})`);
+  }
+
+  const ranked = rankCandidates(candidates, settings, now, context);
   const { picks, reservePct } = allocate(ranked, settings);
   const date = now.toISOString().slice(0, 10);
   console.log('');
