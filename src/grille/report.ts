@@ -7,14 +7,16 @@ export function formatGrilleReport(
   reservePct: number,
   pctEach: number,
   date: string,
-  show = 15
+  options: { awaiting?: ScoredCandidate[]; researchDate?: string; show?: number } = {}
 ): string {
+  const show = options.show ?? 15;
+  const awaiting = options.awaiting ?? [];
   const lines: string[] = [];
   const eligible = ranked.filter((scored) => scored.eligible);
   lines.push(`Grille de notation du cœur — ${date}`);
   lines.push(`${ranked.length} projets examinés, ${eligible.length} remplissent les règles d'entrée.`);
   lines.push('');
-  lines.push('Rang  Projet                 Note   Revenus Adoption Tokenom. Marché Sécurité');
+  lines.push('Rang  Projet                 Note   Revenus Adoption Tokenom. Marché Sécurité  Chercheur');
   eligible.slice(0, show).forEach((scored, index) => {
     const p = scored.parts;
     const name = `${scored.candidate.name} (${scored.candidate.symbol})`.slice(0, 22).padEnd(22);
@@ -22,7 +24,8 @@ export function formatGrilleReport(
       `${String(index + 1).padStart(4)}  ${name} ${scored.total.toFixed(0).padStart(4)}  ` +
         [p.revenus, p.adoption, p.tokenomics, p.marche, p.securite]
           .map((value, i) => value.toFixed(0).padStart([7, 9, 9, 7, 9][i]!))
-          .join('')
+          .join('') +
+        `  ${researchLabel(scored)}`
     );
   });
   lines.push('     (maximum : 100 = revenus 25 + adoption 30 + tokenomics 20 + marché 15 + sécurité 10)');
@@ -39,9 +42,19 @@ export function formatGrilleReport(
           `capitalisation ${formatUsd(market.marketCapUsd)}`
       );
       for (const note of scored.notes) lines.push(`      ${note}`);
+      if (scored.research) lines.push(`      Chercheur (${scored.research.decision}) : ${scored.research.raison}`);
     }
-    if (reservePct > 0) lines.push(`  • ${reservePct} % restent en USDC (pas assez de projets éligibles).`);
   }
+  for (const scored of awaiting) {
+    lines.push(
+      `  • ${scored.candidate.name} (${scored.candidate.symbol}), note ${scored.total.toFixed(0)}/100 : ` +
+        `en attente de recherche, sa part reste en USDC.`
+    );
+  }
+  if (reservePct > 0) {
+    lines.push(`  ${reservePct} % au total restent en USDC.`);
+  }
+  if (options.researchDate) lines.push(`  (verdicts du Chercheur datés du ${options.researchDate})`);
 
   const reasons = new Map<string, number>();
   for (const scored of ranked) {
@@ -58,9 +71,14 @@ export function formatGrilleReport(
 
   lines.push('');
   lines.push(
-    'À vérifier par le Chercheur avant tout achat réel : audits (liens), calendrier de déblocage des ' +
-      "jetons sur 6 mois, actualité. Il pourra exclure un projet ou baisser sa note, jamais la relever."
+    'Le Chercheur vérifie les projets les mieux classés avant tout achat : audits (liens), calendrier de déblocage des ' +
+      "jetons sur 6 mois, actualité. Il peut exclure un projet ou baisser sa note, jamais la relever."
   );
   lines.push('Note calculée sur des données publiques à une date donnée : ce n\'est pas un conseil financier.');
   return lines.join('\n');
+}
+
+function researchLabel(scored: ScoredCandidate): string {
+  if (!scored.research) return 'à étudier';
+  return { valider: 'validé', baisser: 'baissé', exclure: 'exclu' }[scored.research.decision];
 }

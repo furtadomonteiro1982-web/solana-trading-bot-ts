@@ -1,0 +1,54 @@
+{
+  "date": "2026-11-26",
+  "verdicts": [
+    {
+      "geckoId": "lido-dao",
+      "projet": "Lido (LDO)",
+      "decision": "valider",
+      "raison": "Nombreux audits publiés (index officiel), jeton entièrement débloqué. À suivre : premier semestre 2026 en perte de 4,45 M$ à cause d'une dépense exceptionnelle, prix proche de son plus bas historique.",
+      "sources": [
+        "https://docs.lido.fi/security/audits",
+        "https://tokenomist.ai/lido-dao",
+        "https://messari.io/project/lido-dao/token-unlocks",
+        "https://www.dlnews.com/articles/defi/lido-jumps-from-all-time-low-as-dao-debates-buyback-programme/",
+        "https://thedefiant.io/news/defi/lido-dao-votes-on-framework-for-its-lending-protocol"
+      ]
+    },
+    {
+      "geckoId": "syrup",
+      "projet": "Maple Finance (SYRUP)",
+      "decision": "baisser",
+      "points": 5,
+      "raison": "Audits multiples (Spearbit, Three Sigma, 0xMacro, Sherlock en 2025), mais émission continue d'environ 5 % par an que la note de tokenomics ne voit pas, et un risque de crédit propre au prêt aux institutions (perte d'environ 36 M$ en 2022, sans faille technique).",
+      "sources": [
+        "https://docs.maple.finance/legal/syrupusdc-and-syrupusdt-risks",
+        "https://docs.maple.finance/technical-resources/security",
+        "https://curation.yearn.fi/report/maple-syrupusdc/",
+        "https://x.com/Tokenomist_ai/status/1950206058263433345"
+      ]
+    },
+    {
+      "geckoId": "pancakeswap-token",
+      "projet": "PancakeSwap (CAKE)",
+      "decision": "valider",
+      "raison": "Offre maximale réduite à 400 M de CAKE en janvier 2026 et 37 mois de déflation nette ; audits par plusieurs cabinets et programme de primes aux failles. À suivre : la proposition « Flip » (octobre 2026) réduirait fortement les rachats et brûlages ; pas de liste officielle à jour des audits d'Infinity trouvée.",
+      "sources": [
+        "https://en.cryptonomist.ch/2026/01/20/cake-token-max-supply-400m/",
+        "https://cryptobriefing.com/pancakeswap-88-lp-fee-share-cake-emissions/",
+        "https://thelearningpill.substack.com/p/pancakeswap-the-flip-side-of-a-69",
+        "https://www.certik.com/blog/pancakeswap-infinity-hooks-security-considerations"
+      ]
+    },
+    {
+      "geckoId": "sushi",
+      "projet": "Sushi (SUSHI)",
+      "decision": "exclure",
+      "raison": "En décembre 2025, l'émission annuelle a été portée jusqu'à 5 % (environ 14 M de SUSHI par an au lieu de 4 M) par un vote contrôlé à 99,9 % par un seul portefeuille : gouvernance concentrée et inflation que la note de tokenomics ne voit pas.",
+      "sources": [
+        "https://thedefiant.io/news/defi/sushiswap-approves-sushi-emissions-boost-in-vote-controlled-by-single-wallet",
+        "https://messari.io/project/sushiswap",
+        "https://cointelegraph.com/news/sushi-swap-team-treasury-takeover-looks-likely-amid-heated-debate"
+      ]
+    }
+  ]
+}

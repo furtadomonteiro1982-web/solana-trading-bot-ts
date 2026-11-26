@@ -79,6 +79,8 @@ Elle choisit les projets qui reçoivent la part « projets » du cœur (4 projet
 
 **Pourquoi comparer au marché :** la TVL se compte en dollars et baisse quand les cryptos baissent. Sans comparaison, une baisse générale pénaliserait tous les projets de la même façon. Le 26 novembre 2026, la TVL totale de la DeFi avait perdu 10 % en 6 mois : un projet à −8 % faisait donc un peu mieux que le marché, tandis que Sky (−46 % par rapport au marché) perdait réellement ses utilisateurs. Le partage 25 / 30 entre revenus et adoption reste un choix de jugement, qu'aucune donnée ne valide.
 
+**Verdicts du Chercheur :** ils sont dans `config/chercheur.json` (décision, raison, sources) et la grille les applique : « valider », « baisser » (de N points) ou « exclure », jamais relever. Parmi les 4 premiers projets éligibles, **seuls ceux que le Chercheur a étudiés reçoivent leur part** ; les autres attendent leur recherche et leur part reste en USDC. Chaque recherche est détaillée dans `docs/recherche/AAAA-MM-JJ.md`.
+
 Chaque exécution enregistre le détail dans `data/grille/AAAA-MM-JJ.json`. **La grille ne peut pas être testée honnêtement sur le passé** (données de fond anciennes indisponibles date par date, et biais du survivant) : elle sera jugée en simulation, chaque trimestre, en comparant les projets retenus au fait de garder ces 20 % en USDC ou de les mettre en BTC.
 
 ### Pourquoi cette répartition

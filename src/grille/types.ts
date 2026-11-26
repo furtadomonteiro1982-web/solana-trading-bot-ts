@@ -93,4 +93,6 @@ export interface ScoredCandidate {
   total: number;
   /** Explications courtes des points attribués. */
   notes: string[];
+  /** Verdict du Chercheur, s'il a étudié le projet. */
+  research?: { decision: 'valider' | 'baisser' | 'exclure'; raison: string; sources: string[] };
 }

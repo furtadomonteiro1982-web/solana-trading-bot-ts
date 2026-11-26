@@ -5,7 +5,8 @@ import { buildCandidates } from './grille/buildCandidates.js';
 import { fetchMarkets } from './grille/coingeckoClient.js';
 import { DefiLlamaClient } from './grille/defillamaClient.js';
 import { formatGrilleReport } from './grille/report.js';
-import { allocate, rankCandidates } from './grille/scoring.js';
+import { allocateResearched, applyVerdicts, loadChercheurFile } from './grille/chercheur.js';
+import { rankCandidates } from './grille/scoring.js';
 
 // Note les projets candidats pour la part « projets » du cœur (docs/agents.md). Données publiques
 // DefiLlama et CoinGecko, gratuites et sans clé. Aucun ordre n'est passé.
@@ -60,11 +61,12 @@ async function main() {
     console.warn(`TVL totale de la DeFi indisponible, évolutions comparées en brut (${String(error)})`);
   }
 
-  const ranked = rankCandidates(candidates, settings, now, context);
-  const { picks, reservePct } = allocate(ranked, settings);
+  const research = loadChercheurFile('config/chercheur.json');
+  const ranked = applyVerdicts(rankCandidates(candidates, settings, now, context), research?.verdicts ?? []);
+  const { picks, awaiting, reservePct } = allocateResearched(ranked, settings);
   const date = now.toISOString().slice(0, 10);
   console.log('');
-  console.log(formatGrilleReport(ranked, picks, reservePct, settings.pctEach, date));
+  console.log(formatGrilleReport(ranked, picks, reservePct, settings.pctEach, date, { awaiting, researchDate: research?.date }));
 
   const dir = 'data/grille';
   fs.mkdirSync(dir, { recursive: true });
@@ -75,6 +77,7 @@ async function main() {
       {
         date,
         settings,
+        awaiting: awaiting.map((scored) => scored.candidate.name),
         picks: picks.map((scored) => ({ name: scored.candidate.name, symbol: scored.candidate.symbol, geckoId: scored.candidate.geckoId, total: scored.total, pct: settings.pctEach })),
         ranked: ranked.map((scored) => ({ ...scored, candidate: { ...scored.candidate, hacks: scored.candidate.hacks } })),
       },
