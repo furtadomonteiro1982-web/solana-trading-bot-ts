@@ -181,6 +181,8 @@ export const BotConfigSchema = z.object({
       feePct: z.number().nonnegative().default(0.1),
       slippagePct: z.number().nonnegative().default(0.1),
       benchmarkAsset: z.string().default('BTC'),
+      // Premier jour de la simulation « en direct » du cœur, suivie chaque mois par le Comptable.
+      simulationStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default('2026-11-26'),
       binanceBaseUrl: z.url().default('https://data-api.binance.vision'),
     })
     .default({
@@ -191,6 +193,7 @@ export const BotConfigSchema = z.object({
       feePct: 0.1,
       slippagePct: 0.1,
       benchmarkAsset: 'BTC',
+      simulationStartDate: '2026-11-26',
       binanceBaseUrl: 'https://data-api.binance.vision',
     }),
   // Coûts simulés en paper trading (slippage + frais), inspirés de solana_memecoin_bot/portfolio.py :

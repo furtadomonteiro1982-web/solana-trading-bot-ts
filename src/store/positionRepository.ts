@@ -52,6 +52,11 @@ export class PositionRepository {
     return rows.map(rowToPosition);
   }
 
+  /** Toutes les positions, ouvertes et fermées, dans l'ordre d'ouverture. */
+  getAllPositions(): Position[] {
+    return this.db.prepare('SELECT * FROM positions ORDER BY id').all().map(rowToPosition);
+  }
+
   /** Positions fermées depuis `since` (inclus), toutes stratégies confondues. */
   getClosedSince(since: Date): Position[] {
     const rows = this.db

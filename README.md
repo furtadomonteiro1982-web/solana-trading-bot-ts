@@ -155,6 +155,27 @@ et le détail est enregistré dans `data/grille/AAAA-MM-JJ.json`. Critères et �
 section « Grille de notation des projets » de [docs/agents.md](./docs/agents.md). Aucun achat n'est
 fait : c'est une liste à examiner, pas un conseil financier.
 
+## Rapport mensuel du Comptable
+
+```bash
+npm run comptable                          # mois en cours
+npm run comptable -- --mois 2026-12        # un mois précis
+npm run comptable -- --depuis 2025-11-01   # comme si la simulation avait commencé à cette date
+```
+
+Compare, sur le mois et depuis le départ de la simulation (`core.simulationStartDate` dans
+`config/config.json`, le 26 novembre 2026 par défaut) :
+
+- le **cœur**, rejoué avec ses achats hebdomadaires sur les vrais prix de Binance, face à **BTC seul
+  acheté au même rythme** ;
+- le **satellite** (trading horaire et sniper), à partir des positions de `data/bot.sqlite`, face à
+  **BTC acheté d'un coup** avec le même capital. Les gains sont nets des frais et du slippage
+  simulés ; les positions encore ouvertes sont comptées à leur prix d'achat.
+
+Le rapport s'affiche, est enregistré dans `data/comptable/AAAA-MM.txt`, et part sur Telegram si
+`TELEGRAM_BOT_TOKEN` et `TELEGRAM_CHAT_ID` sont renseignés dans `.env`. Le satellite n'apparaît que
+sur la machine où le bot tourne, puisque sa base de données s'y trouve.
+
 ## Arrêt d'urgence du satellite
 
 Créez un fichier `STOP` à la racine du projet (`touch STOP`) : le bot n'ouvre plus aucune position,

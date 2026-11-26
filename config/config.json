@@ -90,6 +90,7 @@
     "feePct": 0.1,
     "slippagePct": 0.1,
     "benchmarkAsset": "BTC",
+    "simulationStartDate": "2026-11-26",
     "binanceBaseUrl": "https://data-api.binance.vision"
   }
 }

@@ -160,6 +160,7 @@ Sur les deux historiques, le cœur baisse nettement moins et n'est presque jamai
 - **Toujours :** les résultats des deux budgets sont séparés, pour savoir si le trading rapporte vraiment plus que le long terme seul.
 - **Interdits :** changer les règles ou les stratégies.
 - **Technique :** TypeScript pour les calculs (`src/store/`, `src/backtest.ts`) ; Claude pour la rédaction ; envoi par Telegram (`src/notifier/telegramNotifier.ts`).
+- **Rapport mensuel en place (`npm run comptable`, code dans `src/comptable/`) :** le cœur est rejoué depuis la date de départ de la simulation (`core.simulationStartDate`) sur les vrais prix et comparé à BTC seul acheté au même rythme ; le satellite est lu dans la base du bot et comparé à BTC acheté d'un coup avec le même capital. Pas encore inclus : la part « projets » choisie par la grille (comptée en USDC) et le rapport quotidien du satellite.
 
 ## 7. Veilleur — surveillance
 
