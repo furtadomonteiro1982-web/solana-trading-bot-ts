@@ -5,6 +5,7 @@ import { fetchDailyCloses } from './core/binanceClient.js';
 import { runCoreBacktest, runSingleAssetBenchmark } from './core/dcaBacktest.js';
 import { alignSeries, lastDays, parseDailyCsv, toDailyCsv, type DailyClose } from './core/priceSeries.js';
 import { formatCoreReport, formatRollingReport } from './core/report.js';
+import { coreBacktestConfig } from './core/settings.js';
 import { runRollingWindows } from './core/rollingWindows.js';
 
 // Rejoue le cœur long terme sur des prix passés. Simulation pure : aucun ordre, aucune clé.
@@ -15,11 +16,14 @@ import { runRollingWindows } from './core/rollingWindows.js';
 //   npm run backtest:core -- --csv data/prix   rejoue hors ligne depuis BTC.csv, ETH.csv…
 //   npm run backtest:core -- --rolling         fenêtres de 3 ans glissantes sur tout l'historique
 //   npm run backtest:core -- --rolling --step-days 91 --history-years 8
+//   npm run backtest:core -- --avec-projets   ajoute les projets de la grille (historique plus court)
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const config = loadConfig('config/config.json').core;
-  const assets = [...new Set([...Object.keys(config.targets), config.benchmarkAsset])];
+  const fullConfig = loadConfig('config/config.json');
+  const config = fullConfig.core;
+  const backtestConfig = coreBacktestConfig(fullConfig, { withProjects: args.withProjects });
+  const assets = [...new Set([...Object.keys(backtestConfig.targets), config.benchmarkAsset])];
   const windowDays = Math.round(args.years * 365);
   const downloadDays = args.rolling ? Math.round(args.historyYears * 365) : windowDays;
 
@@ -39,14 +43,6 @@ async function main() {
   }
 
   const allDays = alignSeries(series);
-  const backtestConfig = {
-    capitalUsd: config.capitalUsd,
-    targets: config.targets,
-    dcaWeeks: config.dcaWeeks,
-    rebalanceThresholdPts: config.rebalanceThresholdPts,
-    feePct: config.feePct,
-    slippagePct: config.slippagePct,
-  };
   if (args.rolling) {
     const summary = runRollingWindows(allDays, windowDays, args.stepDays, backtestConfig, config.benchmarkAsset);
     console.log(formatRollingReport(summary, config.benchmarkAsset, args.years));
@@ -64,12 +60,13 @@ interface RunnerArgs {
   rolling: boolean;
   stepDays: number;
   historyYears: number;
+  withProjects: boolean;
   csvDir?: string;
   saveDir?: string;
 }
 
 function parseArgs(argv: string[]): RunnerArgs {
-  const result: RunnerArgs = { years: 3, rolling: false, stepDays: 30, historyYears: 10 };
+  const result: RunnerArgs = { years: 3, rolling: false, stepDays: 30, historyYears: 10, withProjects: false };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     const value = argv[i + 1];
@@ -77,6 +74,8 @@ function parseArgs(argv: string[]): RunnerArgs {
       result.years = Number(value);
       if (!(result.years > 0)) throw new Error(`--years attend un nombre positif, reçu « ${value} ».`);
       i++;
+    } else if (flag === '--avec-projets') {
+      result.withProjects = true;
     } else if (flag === '--rolling') {
       result.rolling = true;
     } else if (flag === '--step-days' && value) {
@@ -96,7 +95,7 @@ function parseArgs(argv: string[]): RunnerArgs {
       result.saveDir = value;
       i++;
     } else {
-      throw new Error(`Option inconnue ou incomplète : « ${flag} ». Options : --years N, --rolling, --step-days N, --history-years N, --csv DOSSIER, --save DOSSIER.`);
+      throw new Error(`Option inconnue ou incomplète : « ${flag} ». Options : --years N, --rolling, --avec-projets, --step-days N, --history-years N, --csv DOSSIER, --save DOSSIER.`);
     }
   }
   return result;

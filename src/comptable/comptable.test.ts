@@ -123,6 +123,13 @@ describe('corePortfolioLines', () => {
     expect(btc!.label).toContain('BTC seul');
   });
 
+  it("refuse un historique qui commence après le départ de la simulation", () => {
+    const period = reportPeriod('2026-10', '2026-01-01', today);
+    const lateStart = makeDays(400, () => 100, Date.UTC(2026, 1, 1));
+
+    expect(() => corePortfolioLines(lateStart, '2026-01-01', period, coreConfig, 'BTC')).toThrow(/ne commence que le 2026-02-01/);
+  });
+
   it('refuse une période sans les prix jusqu’à sa fin', () => {
     const period = reportPeriod('2026-10', '2026-01-01', today);
 
@@ -158,7 +165,14 @@ describe('formatMonthlyReport', () => {
 
     expect(report).toMatch(/Cœur\s+480\.00 \$\s+525\.00 \$\s+\+5\.0 %\s+\+9\.4 %/);
     expect(report).toContain('aucune donnée');
-    expect(report).toContain('20 % « projets »');
+    expect(report).toContain('20 % du cœur sont comptés en USDC');
+  });
+
+  it('liste les projets de la grille inclus dans le cœur', () => {
+    const report = formatMonthlyReport({ ...base, satellite: null, reservePct: 0, projects: ['LDO', 'CVX'] });
+
+    expect(report).toContain('Projets de la grille inclus dans le cœur : LDO, CVX.');
+    expect(report).not.toContain('USDC');
   });
 
   it('détaille chaque stratégie du satellite', () => {

@@ -138,6 +138,10 @@ Avec `--rolling`, le cœur et BTC seul sont rejoués sur une fenêtre de 3 ans (
 tous les 30 jours (`--step-days`), sur jusqu'à 10 ans de prix (`--history-years`). L'historique commun
 est limité par l'actif le plus récent : SOL n'est coté sur Binance que depuis août 2020.
 
+Par défaut, le test sur le passé ne contient que les quatre majeurs (la part « projets » y reste en USDC),
+car les projets de la grille ont un historique plus court (SYRUP n'est coté sur Binance que depuis mai
+2025). `--avec-projets` les ajoute, sur la période commune. Le Comptable, lui, les inclut toujours.
+
 Les réglages sont dans la section `core` de `config/config.json` : capital, parts cibles, nombre
 d'achats, seuil de rééquilibrage, frais et slippage simulés (0,1 % chacun par défaut). Aucun ordre
 n'est passé et aucune clé n'est utilisée.

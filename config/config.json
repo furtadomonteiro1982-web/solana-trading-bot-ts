@@ -85,6 +85,7 @@
   "core": {
     "capitalUsd": 480,
     "targets": { "BTC": 50, "ETH": 15, "SOL": 10, "BNB": 5 },
+    "projectTargets": { "LDO": 5, "CAKE": 5, "SYRUP": 5, "CVX": 5 },
     "dcaWeeks": 104,
     "rebalanceThresholdPts": 5,
     "feePct": 0.1,

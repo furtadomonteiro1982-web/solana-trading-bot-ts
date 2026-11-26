@@ -25,6 +25,12 @@ export function corePortfolioLines(
   if (window.length === 0 || window[window.length - 1]!.date !== period.end) {
     throw new Error(`Prix manquants : il faut les prix de tous les actifs du ${simulationStart} au ${period.end}.`);
   }
+  if (window[0]!.date !== simulationStart) {
+    throw new Error(
+      `Prix manquants : l'historique commun à tous les actifs ne commence que le ${window[0]!.date}, ` +
+        `après le départ de la simulation (${simulationStart}). Un actif était-il déjà coté ?`
+    );
+  }
   const valueOn = (values: { date: string; valueUsd: number }[], date: string, fallback: number) => {
     const before = values.filter((point) => point.date < date);
     return before.length === 0 ? fallback : before[before.length - 1]!.valueUsd;

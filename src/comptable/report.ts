@@ -12,6 +12,7 @@ export function formatMonthlyReport(input: {
   satellite: StrategySummary[] | null;
   satelliteBenchmark: PortfolioLine;
   reservePct: number;
+  projects?: string[];
 }): string {
   const { period, simulationStart } = input;
   const lines: string[] = [];
@@ -52,8 +53,11 @@ export function formatMonthlyReport(input: {
   } else {
     lines.push("Satellite : aucune donnée (base data/bot.sqlite absente : le bot n'a pas tourné sur cette machine).");
   }
+  if (input.projects && input.projects.length > 0) {
+    lines.push(`Projets de la grille inclus dans le cœur : ${input.projects.join(', ')}.`);
+  }
   if (input.reservePct > 0) {
-    lines.push(`Les ${input.reservePct} % « projets » du cœur sont comptés en USDC, sans rendement.`);
+    lines.push(`${input.reservePct} % du cœur sont comptés en USDC, sans rendement.`);
   }
 
   lines.push('');

@@ -176,6 +176,9 @@ export const BotConfigSchema = z.object({
     .object({
       capitalUsd: z.number().positive().default(480),
       targets: z.record(z.string(), z.number().min(0).max(100)).default({ BTC: 50, ETH: 15, SOL: 10, BNB: 5 }),
+      // Projets retenus par la grille (symboles Binance, paire USDT), en % du capital du cœur. Mis à
+      // jour par le propriétaire à chaque revue trimestrielle, d'après `npm run grille`.
+      projectTargets: z.record(z.string(), z.number().min(0).max(100)).default({ LDO: 5, CAKE: 5, SYRUP: 5, CVX: 5 }),
       dcaWeeks: z.number().int().positive().default(104),
       rebalanceThresholdPts: z.number().nonnegative().default(5),
       feePct: z.number().nonnegative().default(0.1),
@@ -188,6 +191,7 @@ export const BotConfigSchema = z.object({
     .default({
       capitalUsd: 480,
       targets: { BTC: 50, ETH: 15, SOL: 10, BNB: 5 },
+      projectTargets: { LDO: 5, CAKE: 5, SYRUP: 5, CVX: 5 },
       dcaWeeks: 104,
       rebalanceThresholdPts: 5,
       feePct: 0.1,

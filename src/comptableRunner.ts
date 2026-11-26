@@ -3,6 +3,7 @@ import path from 'node:path';
 import { loadConfig } from './config.js';
 import { fetchDailyCloses } from './core/binanceClient.js';
 import { alignSeries, type DailyClose } from './core/priceSeries.js';
+import { coreBacktestConfig, reservePct } from './core/settings.js';
 import { corePortfolioLines, lumpSumLine } from './comptable/core.js';
 import { currentMonth, reportPeriod } from './comptable/period.js';
 import { formatMonthlyReport } from './comptable/report.js';
@@ -27,22 +28,22 @@ async function main() {
   const simulationStart = args.since ?? config.core.simulationStartDate;
   const period = reportPeriod(args.month ?? currentMonth(today), simulationStart, today);
 
-  const assets = [...new Set([...Object.keys(config.core.targets), config.core.benchmarkAsset])];
+  const coreConfig = coreBacktestConfig(config, { withProjects: true });
+  const assets = [...new Set([...Object.keys(coreConfig.targets), config.core.benchmarkAsset])];
   const daysNeeded = Math.ceil((today.getTime() - Date.parse(simulationStart)) / 86_400_000) + 2;
   const series: Record<string, DailyClose[]> = {};
   for (const asset of assets) {
     series[asset] = await fetchDailyCloses(asset, daysNeeded, { baseUrl: config.core.binanceBaseUrl });
   }
+  const lateAssets = assets.filter((asset) => (series[asset]![0]?.date ?? '9999') > simulationStart);
+  if (lateAssets.length > 0) {
+    throw new Error(
+      `Pas de prix au ${simulationStart} pour : ${lateAssets.map((a) => `${a} (coté depuis le ${series[a]![0]?.date ?? '?'})`).join(', ')}. ` +
+        'Choisissez une date de départ plus récente.'
+    );
+  }
   const days = alignSeries(series);
 
-  const coreConfig = {
-    capitalUsd: config.core.capitalUsd,
-    targets: config.core.targets,
-    dcaWeeks: config.core.dcaWeeks,
-    rebalanceThresholdPts: config.core.rebalanceThresholdPts,
-    feePct: config.core.feePct,
-    slippagePct: config.core.slippagePct,
-  };
   const core = corePortfolioLines(days, simulationStart, period, coreConfig, config.core.benchmarkAsset);
 
   const satelliteCapital = config.risk.simulatedCapitalUsd + config.sniper.simulatedCapitalUsd;
@@ -64,9 +65,15 @@ async function main() {
     satelliteCapital,
     `${config.core.benchmarkAsset} acheté d'un coup (capital du satellite)`
   );
-  const reservePct = 100 - Object.values(config.core.targets).reduce((sum, pct) => sum + pct, 0);
-
-  const report = formatMonthlyReport({ period, simulationStart, core, satellite, satelliteBenchmark, reservePct });
+  const report = formatMonthlyReport({
+    period,
+    simulationStart,
+    core,
+    satellite,
+    satelliteBenchmark,
+    reservePct: reservePct(coreConfig),
+    projects: Object.keys(config.core.projectTargets),
+  });
   console.log(report);
 
   const dir = 'data/comptable';

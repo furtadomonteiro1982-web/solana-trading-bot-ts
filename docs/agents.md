@@ -42,7 +42,7 @@ Le système gère deux budgets séparés :
 | 15 % | ETH |
 | 10 % | SOL |
 | 5 % | BNB |
-| 20 % | projets sélectionnés par la grille, **5 % maximum par projet** |
+| 20 % | projets sélectionnés par la grille, **5 % maximum par projet** : au 26 novembre 2026, LDO, CAKE, SYRUP et CVX (`core.projectTargets` dans `config/config.json`, mis à jour par le propriétaire à chaque revue trimestrielle) |
 
 - **Achats progressifs (DCA) :** les 480 $ sont investis en 104 achats hebdomadaires (2 ans) d'environ 4,60 $, répartis selon la cible. Étaler les achats sur 2 ans plutôt qu'1 réduit nettement les baisses dans les tests sur le passé (voir « Pourquoi cette répartition »).
 - **Rééquilibrage :** vérifié chaque trimestre ; on rééquilibre seulement si une part s'écarte de plus de 5 points de sa cible.
