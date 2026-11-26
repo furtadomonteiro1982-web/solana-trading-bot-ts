@@ -49,6 +49,19 @@
         "https://messari.io/project/sushiswap",
         "https://cointelegraph.com/news/sushi-swap-team-treasury-takeover-looks-likely-amid-heated-debate"
       ]
+    },
+    {
+      "geckoId": "convex-finance",
+      "projet": "Convex Finance (CVX)",
+      "decision": "valider",
+      "raison": "7 audits officiels (MixBytes 2021 pour les contrats principaux ; PeckShield, ChainSecurity et Nomoi en 2022-2023), primes aux failles jusqu'à 250 000 $, offre maximale de 100 M de CVX dont l'équipe, les investisseurs et la trésorerie ont fini leur déblocage (1 an après 2021), seul incident : un détournement du site en 2022 (14 k$), sans faille des contrats. À suivre : dépendance complète à Curve, aucun audit récent des contrats principaux, TVL −24 % par rapport au marché en 6 mois, proche du seuil d'exclusion (−30 %).",
+      "sources": [
+        "https://docs.convexfinance.com/convexfinance/faq/audits",
+        "https://docs.convexfinance.com/convexfinance/faq/bug-bounties",
+        "https://docs.convexfinance.com/convexfinance/general-information/tokenomics",
+        "https://docs.convexfinance.com/convexfinance/faq/risks",
+        "https://github.com/convex-eth/platform/tree/main/audit"
+      ]
     }
   ]
 }
