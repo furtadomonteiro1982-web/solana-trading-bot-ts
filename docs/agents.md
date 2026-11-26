@@ -26,7 +26,7 @@ Le système gère deux budgets séparés :
 ## Règles communes
 
 - **Budgets étanches :** le satellite ne peut **jamais** puiser dans le cœur. S'il perd tout, le cœur reste intact. Les gains du satellite ne vont dans le cœur que sur décision du propriétaire.
-- **Arrêt d'urgence :** chaque agent vérifie l'interrupteur `STOP` avant toute action. S'il est activé, plus rien ne s'exécute. Seul le propriétaire peut le désactiver.
+- **Arrêt d'urgence :** chaque agent vérifie l'interrupteur `STOP` (un fichier nommé `STOP` à la racine du projet) avant toute action. S'il est présent, **aucune nouvelle position ni aucun achat** n'a lieu. Les fermetures (stops, objectifs, délais) continuent, car elles réduisent le risque. Seul le propriétaire le retire.
 - **Seul le propriétaire change les règles.** Les agents peuvent suggérer, jamais modifier.
 - **Chaque décision est enregistrée** dans le journal (base SQLite) avec sa raison et ses sources.
 
@@ -66,8 +66,9 @@ Sur les deux historiques, le cœur baisse nettement moins et n'est presque jamai
 ## Règles du satellite (trading)
 
 - Perte maximale par trade : environ 2 % du capital du satellite (stop à −20 % sur une position de 10 %).
-- **Perte maximale par jour : 5 %** du capital du satellite, puis coupe-circuit jusqu'au lendemain.
+- **Perte maximale par jour : 5 %** du capital du satellite, puis coupe-circuit jusqu'au lendemain (minuit UTC). Elle se compte sur les pertes **réalisées** (positions fermées dans la journée).
 - **Exposition maximale totale : 50 %** du capital du satellite.
+- Ces limites s'appliquent séparément à chaque stratégie avec son propre capital : trading horaire (100 $) et sniper (20 $). Elles sont dans la section `satellite` de `config/config.json` et codées dans `src/satellite/guards.ts`.
 - Pépites (sniper pump.fun) : budget à part de 20 $, mise de 2 $, stop à −40 %.
 
 ---

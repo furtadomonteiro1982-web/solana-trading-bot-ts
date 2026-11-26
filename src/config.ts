@@ -119,6 +119,16 @@ export const BotConfigSchema = z.object({
         maxCreatorInitialBuyPct: 10,
       },
     }),
+  // Garde-fous du satellite (voir docs/agents.md et src/satellite/guards.ts), appliqués à chaque
+  // stratégie de trading avec son propre capital simulé : hourly (risk.simulatedCapitalUsd) et
+  // sniper (sniper.simulatedCapitalUsd). Ils bloquent les ouvertures, jamais les fermetures.
+  satellite: z
+    .object({
+      maxDailyLossPct: z.number().positive().max(100).default(5),
+      maxExposurePct: z.number().positive().max(100).default(50),
+      stopFile: z.string().min(1).default('STOP'),
+    })
+    .default({ maxDailyLossPct: 5, maxExposurePct: 50, stopFile: 'STOP' }),
   // Cœur long terme (voir docs/agents.md) : achats hebdomadaires répartis selon des parts cibles,
   // rééquilibrage trimestriel. La somme des parts peut rester sous 100 % : le reste est une réserve
   // USDC pour les projets que la grille de notation sélectionnera plus tard.

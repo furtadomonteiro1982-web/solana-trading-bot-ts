@@ -8,6 +8,7 @@ import { shouldSnipe, type NewTokenEvent } from './snipeFilter.js';
 import { evaluateSnipeRisk } from './snipeRisk.js';
 import { reviewOpenPositions } from '../positionManager.js';
 import { closeTimedOutPositions } from './timeoutManager.js';
+import { checkSatelliteGuards, DEFAULT_SATELLITE_GUARDS, isStopRequested, startOfUtcDay } from '../satellite/guards.js';
 
 export interface SniperDeps {
   positionRepo: PositionRepository;
@@ -52,6 +53,28 @@ export async function handleNewToken(
       stage: 'SNIPE',
       decision: 'REJECTED',
       reason: risk.reason,
+    });
+    return;
+  }
+
+  const guardSettings = config.satellite ?? DEFAULT_SATELLITE_GUARDS;
+  const guard = checkSatelliteGuards({
+    strategy: 'snipe',
+    capitalUsd: config.sniper.simulatedCapitalUsd,
+    // Les snipes en cours d'achat comptent déjà dans l'exposition, comme dans openSnipesCount.
+    newPositionSizeUsd: risk.positionSizeUsd * (1 + deps.pendingSnipes.size),
+    openPositions: positionRepo.getOpenPositions(),
+    closedToday: positionRepo.getClosedSince(startOfUtcDay(now)),
+    stopRequested: isStopRequested(guardSettings.stopFile),
+    settings: guardSettings,
+  });
+  if (!guard.allowed) {
+    decisionLog.log({
+      timestamp: now,
+      poolAddress: event.tokenAddress,
+      stage: 'SNIPE',
+      decision: 'REJECTED',
+      reason: guard.reason,
     });
     return;
   }

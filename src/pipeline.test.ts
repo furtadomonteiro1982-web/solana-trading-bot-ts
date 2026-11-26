@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type Database from 'better-sqlite3';
 import { createDb } from './store/db.js';
@@ -99,6 +102,32 @@ beforeEach(() => {
 });
 
 describe('runCycle', () => {
+  it("n'ouvre rien quand l'interrupteur STOP est présent, mais continue de surveiller", async () => {
+    const stopFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stop-')), 'STOP');
+    fs.writeFileSync(stopFile, '');
+    const withStop = { ...config, satellite: { maxDailyLossPct: 5, maxExposurePct: 50, stopFile } } as BotConfig;
+
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config: withStop });
+
+    expect(summary.positionsOpened).toBe(0);
+    expect(executeMock).not.toHaveBeenCalled();
+    expect(decisionLog.getRecent(10).some((entry) => /STOP/.test(entry.reason))).toBe(true);
+  });
+
+  it("n'ouvre rien quand la perte réalisée du jour atteint le coupe-circuit", async () => {
+    const opened = positionRepo.openPosition({
+      poolAddress: 'OLD', baseTokenAddress: 'OLDTOKEN', baseTokenSymbol: 'OLD', entryPriceUsd: 1, sizeUsd: 100,
+      stopLossPrice: 0.5, takeProfitPrice: 2, trailingStopPct: 50, openedAt: new Date(),
+    });
+    // −50 % sur 100 $ = −50 $, soit 5 % du capital de 1000 $.
+    positionRepo.closePosition(opened.id, 0.5, 'STOP_LOSS', new Date());
+
+    const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
+
+    expect(summary.positionsOpened).toBe(0);
+    expect(decisionLog.getRecent(10).some((entry) => /Coupe-circuit/.test(entry.reason))).toBe(true);
+  });
+
   it('scans, filters, signals, opens a position, and leaves it open', async () => {
     const summary = await runCycle({ client, priceClient, positionRepo, decisionLog, firstSeenRepo, nearStopLossWarned, executor, notifier, config });
 

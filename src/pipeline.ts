@@ -11,6 +11,7 @@ import { filterPools } from './filter.js';
 import { generateSignal } from './signal.js';
 import { evaluateRisk } from './risk.js';
 import { reviewOpenPositions } from './positionManager.js';
+import { checkSatelliteGuards, DEFAULT_SATELLITE_GUARDS, isStopRequested, startOfUtcDay } from './satellite/guards.js';
 
 export interface PipelineDeps {
   client: MarketDataClient;
@@ -157,6 +158,27 @@ export async function runCycle(deps: PipelineDeps): Promise<CycleSummary> {
           risk.stopLossPrice === undefined ||
           risk.takeProfitPrice === undefined
         ) {
+          continue;
+        }
+
+        const guardSettings = config.satellite ?? DEFAULT_SATELLITE_GUARDS;
+        const guard = checkSatelliteGuards({
+          strategy: 'hourly',
+          capitalUsd: config.risk.simulatedCapitalUsd,
+          newPositionSizeUsd: risk.positionSizeUsd,
+          openPositions,
+          closedToday: positionRepo.getClosedSince(startOfUtcDay(now)),
+          stopRequested: isStopRequested(guardSettings.stopFile),
+          settings: guardSettings,
+        });
+        if (!guard.allowed) {
+          decisionLog.log({
+            timestamp: now,
+            poolAddress: result.pool.poolAddress,
+            stage: 'RISK',
+            decision: 'REJECTED',
+            reason: guard.reason,
+          });
           continue;
         }
 

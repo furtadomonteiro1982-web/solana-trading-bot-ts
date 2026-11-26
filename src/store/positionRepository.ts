@@ -52,6 +52,14 @@ export class PositionRepository {
     return rows.map(rowToPosition);
   }
 
+  /** Positions fermées depuis `since` (inclus), toutes stratégies confondues. */
+  getClosedSince(since: Date): Position[] {
+    const rows = this.db
+      .prepare("SELECT * FROM positions WHERE status = 'CLOSED' AND closed_at >= ?")
+      .all(since.toISOString());
+    return rows.map(rowToPosition);
+  }
+
   updateHighestPrice(id: number, priceUsd: number): void {
     this.db.prepare('UPDATE positions SET highest_price_usd = ? WHERE id = ?').run(priceUsd, id);
   }

@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type Database from 'better-sqlite3';
 import { createDb } from '../store/db.js';
@@ -70,6 +73,17 @@ beforeEach(() => {
 });
 
 describe('handleNewToken', () => {
+  it("n'ouvre aucun snipe quand l'interrupteur STOP est présent", async () => {
+    const stopFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stop-')), 'STOP');
+    fs.writeFileSync(stopFile, '');
+    deps.config = { ...config, satellite: { maxDailyLossPct: 5, maxExposurePct: 50, stopFile } } as BotConfig;
+
+    await handleNewToken(makeEvent(), deps, 0.001);
+
+    expect(executeMock).not.toHaveBeenCalled();
+    expect(positionRepo.getOpenPositions()).toHaveLength(0);
+  });
+
   it('opens a snipe position when the event passes the filter, at a fixed stake', async () => {
     await handleNewToken(makeEvent(), deps, 0.001);
 

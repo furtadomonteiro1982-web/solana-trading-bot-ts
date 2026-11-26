@@ -142,6 +142,21 @@ Les réglages sont dans la section `core` de `config/config.json` : capital, par
 d'achats, seuil de rééquilibrage, frais et slippage simulés (0,1 % chacun par défaut). Aucun ordre
 n'est passé et aucune clé n'est utilisée.
 
+## Arrêt d'urgence du satellite
+
+Créez un fichier `STOP` à la racine du projet (`touch STOP`) : le bot n'ouvre plus aucune position,
+ni en trading horaire ni en sniper, mais continue de fermer les positions ouvertes à leur stop, leur
+objectif ou leur délai. Supprimez-le (`rm STOP`) pour reprendre.
+
+Deux autres garde-fous, réglables dans la section `satellite` de `config/config.json`, s'appliquent à
+chaque stratégie avec son propre capital simulé :
+
+- **coupe-circuit** : plus aucune ouverture pour la journée (UTC) quand les pertes réalisées du jour
+  atteignent 5 % du capital ;
+- **exposition maximale** : le total des positions ouvertes ne dépasse pas 50 % du capital.
+
+Chaque refus est enregistré dans le journal des décisions avec sa raison.
+
 ## Où sont stockés les résultats
 
 Tout est dans une base SQLite locale : `data/bot.sqlite`. Trois tables :

@@ -62,6 +62,11 @@
     "slippageOutPct": 5,
     "feeUsdPerTx": 0.2
   },
+  "satellite": {
+    "maxDailyLossPct": 5,
+    "maxExposurePct": 50,
+    "stopFile": "STOP"
+  },
   "core": {
     "capitalUsd": 480,
     "targets": { "BTC": 50, "ETH": 15, "SOL": 10, "BNB": 5 },
