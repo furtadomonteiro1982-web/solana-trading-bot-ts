@@ -28,3 +28,7 @@ export function reportPeriod(month: string, simulationStart: string, today: Date
 export function currentMonth(today: Date): string {
   return today.toISOString().slice(0, 7);
 }
+
+export function previousMonth(today: Date): string {
+  return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1)).toISOString().slice(0, 7);
+}

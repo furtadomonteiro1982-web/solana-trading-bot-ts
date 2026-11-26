@@ -26,5 +26,34 @@ module.exports = {
       error_file: 'logs/error.log',
       time: true,
     },
+    // Tâches ponctuelles relancées par PM2 selon un calendrier (heures du serveur, en général UTC).
+    // autorestart: false : le script s'exécute, se termine, et attend la prochaine date. PM2 le
+    // lance aussi une première fois au `pm2 start`.
+    {
+      name: 'comptable',
+      script: 'node_modules/.bin/tsx',
+      // Le 1er du mois à 7 h 13 : rapport du mois précédent, terminé la veille.
+      args: 'src/comptableRunner.ts --mois-precedent',
+      cwd: __dirname,
+      cron_restart: '13 7 1 * *',
+      autorestart: false,
+      watch: false,
+      out_file: 'logs/comptable.log',
+      error_file: 'logs/comptable-error.log',
+      time: true,
+    },
+    {
+      name: 'grille',
+      script: 'node_modules/.bin/tsx',
+      args: 'src/grilleRunner.ts',
+      cwd: __dirname,
+      // Le 1er de chaque trimestre à 6 h 47 : classement à relire avant la revue trimestrielle.
+      cron_restart: '47 6 1 1,4,7,10 *',
+      autorestart: false,
+      watch: false,
+      out_file: 'logs/grille.log',
+      error_file: 'logs/grille-error.log',
+      time: true,
+    },
   ],
 };

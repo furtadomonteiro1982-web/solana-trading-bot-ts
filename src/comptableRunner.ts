@@ -5,7 +5,7 @@ import { fetchDailyCloses } from './core/binanceClient.js';
 import { alignSeries, type DailyClose } from './core/priceSeries.js';
 import { coreBacktestConfig, reservePct } from './core/settings.js';
 import { corePortfolioLines, lumpSumLine } from './comptable/core.js';
-import { currentMonth, reportPeriod } from './comptable/period.js';
+import { currentMonth, previousMonth, reportPeriod } from './comptable/period.js';
 import { formatMonthlyReport } from './comptable/report.js';
 import { summarizeStrategy } from './comptable/satellite.js';
 import { TelegramNotifier } from './notifier/telegramNotifier.js';
@@ -16,6 +16,7 @@ import { PositionRepository } from './store/positionRepository.js';
 //
 //   npm run comptable                         mois en cours
 //   npm run comptable -- --mois 2026-12
+//   npm run comptable -- --mois-precedent    utilisé par la tâche mensuelle de PM2
 //   npm run comptable -- --depuis 2025-01-01  fait comme si la simulation avait commencé à cette date
 
 const DB_PATH = 'data/bot.sqlite';
@@ -26,7 +27,19 @@ async function main() {
   const config = loadConfig('config/config.json');
   const today = new Date();
   const simulationStart = args.since ?? config.core.simulationStartDate;
-  const period = reportPeriod(args.month ?? currentMonth(today), simulationStart, today);
+  const month = args.previousMonth ? previousMonth(today) : (args.month ?? currentMonth(today));
+  let period;
+  try {
+    period = reportPeriod(month, simulationStart, today);
+  } catch (error) {
+    // La tâche planifiée tourne aussi au `pm2 start` : avant le premier mois complet, ce n'est pas
+    // une erreur, juste rien à compter.
+    if (args.previousMonth) {
+      console.log(`Pas encore de rapport : ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
+    throw error;
+  }
 
   const coreConfig = coreBacktestConfig(config, { withProjects: true });
   const assets = [...new Set([...Object.keys(coreConfig.targets), config.core.benchmarkAsset])];
@@ -88,18 +101,20 @@ async function main() {
   }
 }
 
-function parseArgs(argv: string[]): { month?: string; since?: string } {
-  const result: { month?: string; since?: string } = {};
+function parseArgs(argv: string[]): { month?: string; since?: string; previousMonth?: boolean } {
+  const result: { month?: string; since?: string; previousMonth?: boolean } = {};
   for (let i = 0; i < argv.length; i++) {
     const [flag, value] = [argv[i], argv[i + 1]];
-    if (flag === '--mois' && value) {
+    if (flag === '--mois-precedent') {
+      result.previousMonth = true;
+    } else if (flag === '--mois' && value) {
       result.month = value;
       i++;
     } else if (flag === '--depuis' && value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
       result.since = value;
       i++;
     } else {
-      throw new Error(`Option inconnue ou incomplète : « ${flag} ». Options : --mois AAAA-MM, --depuis AAAA-MM-JJ.`);
+      throw new Error(`Option inconnue ou incomplète : « ${flag} ». Options : --mois AAAA-MM, --mois-precedent, --depuis AAAA-MM-JJ.`);
     }
   }
   return result;

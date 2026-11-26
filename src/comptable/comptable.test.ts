@@ -4,7 +4,7 @@ import { PositionRepository } from '../store/positionRepository.js';
 import type { AlignedDay, CoreBacktestConfig } from '../core/types.js';
 import type { Position } from '../types.js';
 import { corePortfolioLines, lumpSumLine } from './core.js';
-import { currentMonth, reportPeriod } from './period.js';
+import { currentMonth, previousMonth, reportPeriod } from './period.js';
 import { formatMonthlyReport } from './report.js';
 import { summarizeStrategy } from './satellite.js';
 
@@ -34,8 +34,10 @@ describe('reportPeriod', () => {
     expect(() => reportPeriod('déc', '2026-01-01', today)).toThrow(/AAAA-MM/);
   });
 
-  it('donne le mois en cours', () => {
+  it('donne le mois en cours et le précédent, y compris en janvier', () => {
     expect(currentMonth(today)).toBe('2026-12');
+    expect(previousMonth(today)).toBe('2026-11');
+    expect(previousMonth(new Date('2027-01-01T07:13:00Z'))).toBe('2026-12');
   });
 });
 
