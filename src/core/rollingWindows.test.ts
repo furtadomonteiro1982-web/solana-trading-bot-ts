@@ -36,13 +36,24 @@ describe('runRollingWindows', () => {
     expect(summary.beatsBenchmarkPct).toBe(0);
   });
 
-  it('compte les fenêtres qui passent le critère de baisse maximale', () => {
+  it('passe le critère quand le cœur baisse moins sans perdre plus souvent', () => {
     // BTC chute de moitié vers le milieu de l'historique, les autres restent stables.
     const btc = (i: number) => (i < 300 ? 100 : i < 400 ? 100 - (i - 300) / 2 : 50);
     const summary = runRollingWindows(makeDays(700, (a, i) => (a === 'BTC' ? btc(i) : 100)), 400, 100, config, 'BTC');
 
-    expect(summary.passRatePct).toBe(100);
-    expect(summary.coreMaxDrawdownPct.worst).toBeLessThan(summary.benchmarkMaxDrawdownPct.worst);
+    expect(summary.coreMaxDrawdownPct.median).toBeLessThan(summary.benchmarkMaxDrawdownPct.median);
+    expect(summary.coreLossPct).toBeLessThanOrEqual(summary.benchmarkLossPct);
+    expect(summary.passesCriterion).toBe(true);
+  });
+
+  it("échoue au critère quand le cœur baisse plus que la référence", () => {
+    // SOL s'effondre, BTC reste stable : le cœur, qui en détient, baisse alors que BTC seul ne bouge pas.
+    const summary = runRollingWindows(makeDays(600, (a, i) => (a === 'SOL' ? Math.max(5, 100 - i / 3) : 100)), 400, 50, config, 'BTC');
+
+    expect(summary.benchmarkMaxDrawdownPct.median).toBeCloseTo(0);
+    expect(summary.coreLossPct).toBe(100);
+    expect(summary.benchmarkLossPct).toBe(0);
+    expect(summary.passesCriterion).toBe(false);
   });
 
   it("explique un historique plus court qu'une fenêtre", () => {

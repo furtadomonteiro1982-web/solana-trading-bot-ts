@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { runCoreBacktest, runSingleAssetBenchmark } from './dcaBacktest.js';
-import { formatCoreReport } from './report.js';
+import { formatCoreReport, formatRollingReport } from './report.js';
+import { runRollingWindows } from './rollingWindows.js';
 import type { AlignedDay, CoreBacktestConfig } from './types.js';
 
 const config: CoreBacktestConfig = {
@@ -34,7 +35,7 @@ describe('formatCoreReport', () => {
     expect(report).toContain('du 2024-01-01 au 2025-02-03');
     expect(report).toContain('BTC seul');
     expect(report).toContain('Réserve USDC');
-    expect(report).toContain('celle de BTC seul : OUI');
+    expect(report).toContain('--rolling');
     expect(report).not.toContain('Attention');
   });
 
@@ -48,5 +49,16 @@ describe('formatCoreReport', () => {
     );
 
     expect(report).toContain('seulement 5 achats sur 52');
+  });
+});
+
+describe('formatRollingReport', () => {
+  it('affiche les fenêtres en perte et le verdict du critère', () => {
+    const btc = (i: number) => (i < 300 ? 100 : i < 400 ? 100 - (i - 300) / 2 : 50);
+    const summary = runRollingWindows(makeDays(700, btc), 400, 100, config, 'BTC');
+    const report = formatRollingReport(summary, 'BTC', 1);
+
+    expect(report).toContain('Fenêtres en perte');
+    expect(report).toContain('pas plus de fenêtres en perte : OUI');
   });
 });

@@ -116,11 +116,14 @@ commentaires en tête de `src/backtest.ts`).
 
 ## Rejouer le cœur long terme sur 3 ans
 
-Le cœur (voir [docs/agents.md](./docs/agents.md)) investit 480 $ simulés en 52 achats
-hebdomadaires répartis entre BTC 35 %, ETH 25 %, SOL 15 % et BNB 5 %. Les 20 % restants sont une
+Le cœur (voir [docs/agents.md](./docs/agents.md)) investit 480 $ simulés en 104 achats
+hebdomadaires (2 ans) répartis entre BTC 50 %, ETH 15 %, SOL 10 % et BNB 5 %. Les 20 % restants sont une
 réserve USDC pour les projets que la grille de notation choisira plus tard. Chaque trimestre, il
 rééquilibre si un actif s'écarte de plus de 5 points de sa part cible. Le résultat est comparé à
 BTC seul, acheté avec les mêmes achats hebdomadaires.
+
+Une seule période ne suffit pas pour juger : le critère de passage (baisse maximale médiane plus
+faible que BTC seul, et pas plus de fenêtres en perte) se lit dans le rapport de `--rolling`.
 
 ```bash
 npm run backtest:core                       # 3 ans de prix journaliers (Binance, gratuit, sans clé)

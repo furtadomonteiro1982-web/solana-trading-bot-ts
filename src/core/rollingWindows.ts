@@ -8,20 +8,25 @@ export interface WindowResult {
   coreMaxDrawdownPct: number;
   benchmarkGainPct: number;
   benchmarkMaxDrawdownPct: number;
-  /** Critère de docs/agents.md : baisse maximale du cœur ≤ celle de la référence. */
-  passesDrawdownCriterion: boolean;
 }
 
 export interface RollingSummary {
   windows: WindowResult[];
-  /** Part des fenêtres qui passent le critère de baisse maximale, en %. */
-  passRatePct: number;
   /** Part des fenêtres où le cœur gagne plus que la référence, en %. */
   beatsBenchmarkPct: number;
   coreGainPct: { min: number; median: number; max: number };
   benchmarkGainPct: { min: number; median: number; max: number };
   coreMaxDrawdownPct: { median: number; worst: number };
   benchmarkMaxDrawdownPct: { median: number; worst: number };
+  /** Part des fenêtres terminées en perte, en %. */
+  coreLossPct: number;
+  benchmarkLossPct: number;
+  /**
+   * Critère de docs/agents.md : baisse maximale médiane du cœur strictement plus faible que celle
+   * de la référence, et part de fenêtres en perte pas plus grande. Jugé sur l'ensemble des
+   * fenêtres : une fenêtre seule dépend trop de son point de départ.
+   */
+  passesCriterion: boolean;
 }
 
 /**
@@ -56,7 +61,6 @@ export function runRollingWindows(
       coreMaxDrawdownPct: core.maxDrawdownPct,
       benchmarkGainPct: benchmark.gainPct,
       benchmarkMaxDrawdownPct: benchmark.maxDrawdownPct,
-      passesDrawdownCriterion: core.maxDrawdownPct <= benchmark.maxDrawdownPct,
     });
   }
 
@@ -64,20 +68,27 @@ export function runRollingWindows(
     (windows.filter(predicate).length / windows.length) * 100;
   const spread = (values: number[]) => ({ min: Math.min(...values), median: median(values), max: Math.max(...values) });
 
+  const coreMedianDrawdown = median(windows.map((w) => w.coreMaxDrawdownPct));
+  const benchmarkMedianDrawdown = median(windows.map((w) => w.benchmarkMaxDrawdownPct));
+  const coreLossPct = share((w) => w.coreGainPct < 0);
+  const benchmarkLossPct = share((w) => w.benchmarkGainPct < 0);
+
   return {
     windows,
-    passRatePct: share((w) => w.passesDrawdownCriterion),
     beatsBenchmarkPct: share((w) => w.coreGainPct > w.benchmarkGainPct),
     coreGainPct: spread(windows.map((w) => w.coreGainPct)),
     benchmarkGainPct: spread(windows.map((w) => w.benchmarkGainPct)),
     coreMaxDrawdownPct: {
-      median: median(windows.map((w) => w.coreMaxDrawdownPct)),
+      median: coreMedianDrawdown,
       worst: Math.max(...windows.map((w) => w.coreMaxDrawdownPct)),
     },
     benchmarkMaxDrawdownPct: {
-      median: median(windows.map((w) => w.benchmarkMaxDrawdownPct)),
+      median: benchmarkMedianDrawdown,
       worst: Math.max(...windows.map((w) => w.benchmarkMaxDrawdownPct)),
     },
+    coreLossPct,
+    benchmarkLossPct,
+    passesCriterion: coreMedianDrawdown < benchmarkMedianDrawdown && coreLossPct <= benchmarkLossPct,
   };
 }
 

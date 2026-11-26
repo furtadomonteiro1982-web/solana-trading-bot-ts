@@ -125,8 +125,8 @@ export const BotConfigSchema = z.object({
   core: z
     .object({
       capitalUsd: z.number().positive().default(480),
-      targets: z.record(z.string(), z.number().min(0).max(100)).default({ BTC: 35, ETH: 25, SOL: 15, BNB: 5 }),
-      dcaWeeks: z.number().int().positive().default(52),
+      targets: z.record(z.string(), z.number().min(0).max(100)).default({ BTC: 50, ETH: 15, SOL: 10, BNB: 5 }),
+      dcaWeeks: z.number().int().positive().default(104),
       rebalanceThresholdPts: z.number().nonnegative().default(5),
       feePct: z.number().nonnegative().default(0.1),
       slippagePct: z.number().nonnegative().default(0.1),
@@ -135,8 +135,8 @@ export const BotConfigSchema = z.object({
     })
     .default({
       capitalUsd: 480,
-      targets: { BTC: 35, ETH: 25, SOL: 15, BNB: 5 },
-      dcaWeeks: 52,
+      targets: { BTC: 50, ETH: 15, SOL: 10, BNB: 5 },
+      dcaWeeks: 104,
       rebalanceThresholdPts: 5,
       feePct: 0.1,
       slippagePct: 0.1,

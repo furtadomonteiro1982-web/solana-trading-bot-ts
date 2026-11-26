@@ -64,8 +64,8 @@
   },
   "core": {
     "capitalUsd": 480,
-    "targets": { "BTC": 35, "ETH": 25, "SOL": 15, "BNB": 5 },
-    "dcaWeeks": 52,
+    "targets": { "BTC": 50, "ETH": 15, "SOL": 10, "BNB": 5 },
+    "dcaWeeks": 104,
     "rebalanceThresholdPts": 5,
     "feePct": 0.1,
     "slippagePct": 0.1,

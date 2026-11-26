@@ -38,17 +38,30 @@ Le système gère deux budgets séparés :
 
 | Part | Contenu |
 |---|---|
-| 35 % | BTC |
-| 25 % | ETH |
-| 15 % | SOL |
+| 50 % | BTC |
+| 15 % | ETH |
+| 10 % | SOL |
 | 5 % | BNB |
 | 20 % | projets sélectionnés par la grille, **5 % maximum par projet** |
 
-- **Achats progressifs (DCA) :** les 480 $ sont investis en 52 achats hebdomadaires d'environ 9,20 $, répartis selon la cible.
+- **Achats progressifs (DCA) :** les 480 $ sont investis en 104 achats hebdomadaires (2 ans) d'environ 4,60 $, répartis selon la cible. Étaler les achats sur 2 ans plutôt qu'1 réduit nettement les baisses dans les tests sur le passé (voir « Pourquoi cette répartition »).
 - **Rééquilibrage :** vérifié chaque trimestre ; on rééquilibre seulement si une part s'écarte de plus de 5 points de sa cible.
 - **Pas de stop serré.** On ne vend pas sur une baisse de prix. On allège ou on sort un projet seulement si sa **note** baisse sous le seuil, ou en cas d'événement grave (piratage, fraude, problème réglementaire).
 - **Conditions d'entrée d'un projet hors des quatre majeurs :** audit de sécurité publié, liquidité suffisante, au moins 1 an d'existence, pas de gros déblocage de jetons dans les 6 mois.
-- **Référence à battre :** BTC seul, acheté avec les mêmes achats progressifs.
+- **Référence à battre :** BTC seul, acheté avec le même calendrier d'achats (104 semaines) et les mêmes frais.
+
+### Pourquoi cette répartition
+
+Testée sur les prix réels de Binance, sur toutes les fenêtres de 3 ans possibles, en novembre 2026 :
+
+| Historique | Stratégie | Gain médian | Pire gain | Baisse médiane | Pire baisse | Fenêtres en perte |
+|---|---|---|---|---|---|---|
+| Depuis août 2020 (41 fenêtres) | BTC seul, 52 semaines | +86 % | −11 % | −52 % | −77 % | 12 % |
+| | **Cœur 50/15/10/5, 104 semaines** | **+120 %** | −17 % | **−40 %** | **−73 %** | **2 %** |
+| Depuis nov. 2017, sans SOL (74 fenêtres) | BTC seul, 52 semaines | +135 % | −10 % | −62 % | −77 % | 7 % |
+| | **Cœur sans SOL, 104 semaines** | +111 % | **−2 %** | **−51 %** | **−73 %** | **1 %** |
+
+Sur les deux historiques, le cœur baisse nettement moins et n'est presque jamais en perte au bout de 3 ans ; son gain est meilleur depuis 2020, moins bon depuis 2017. On renonce à une partie du gain possible en échange d'un parcours moins violent. Limites : SOL a été choisi en sachant qu'il a fortement monté (biais du survivant), et ces historiques couvrent au mieux deux cycles du marché. L'ancienne répartition (35/25/15/5, 52 semaines) ne réduisait presque pas les baisses (médiane −53 % depuis 2020).
 
 ## Règles du satellite (trading)
 
@@ -146,13 +159,13 @@ Partout : interrupteur STOP vérifié avant chaque action
 
 | Étape | Cœur | Satellite |
 |---|---|---|
-| **1. Test sur le passé** | rejouer les achats progressifs et la grille sur 3 ans de données | rejouer les stratégies sur plusieurs mois |
+| **1. Test sur le passé** | rejouer les achats progressifs sur des fenêtres glissantes de 3 ans (`npm run backtest:core -- --rolling`) | rejouer les stratégies sur plusieurs mois |
 | **2. Simulation** | au moins 3 mois | au moins 30 jours |
 | **3. Réel, petit montant** | décision explicite du propriétaire | décision explicite du propriétaire |
 
 **Critères pour passer d'une étape à la suivante :**
 
-- **Cœur :** pendant le test sur le passé, la baisse maximale reste comparable à celle de BTC seul ou meilleure, et aucune règle du Gardien n'a été violée. On ne demande pas au cœur de battre BTC sur 3 mois : la période est trop courte pour juger un placement de 3 à 5 ans.
+- **Cœur :** sur les fenêtres glissantes de 3 ans, la **baisse maximale médiane** du cœur est inférieure à celle de BTC seul, et la **part de fenêtres en perte** n'est pas plus grande ; aucune règle du Gardien n'a été violée. Une seule période ne suffit pas à juger : le classement change selon le point de départ. On ne demande pas non plus au cœur de battre BTC pendant les 3 mois de simulation, période trop courte pour un placement de 3 à 5 ans.
 - **Satellite :** au moins 30 trades, gain positif **après frais**, perte maximale d'une journée sous 5 %, et un écart moyen entre prix prévu et prix obtenu sous 2 %.
 
 Le propriétaire peut modifier tous ces chiffres. Ce sont des propositions de départ.

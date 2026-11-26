@@ -14,11 +14,11 @@ export function formatRollingReport(summary: RollingSummary, benchmarkAsset: str
       `départs du ${first.startDate} au ${last.startDate}`
   );
   lines.push('');
-  lines.push(`Départ       Fin           Cœur gain  baisse   ${benchmarkAsset} gain  baisse   Critère`);
+  lines.push(`Départ       Fin           Cœur gain  baisse   ${benchmarkAsset} gain  baisse`);
   for (const w of summary.windows) {
     lines.push(
       `${w.startDate}   ${w.endDate}   ${pct(w.coreGainPct)} ${dd(w.coreMaxDrawdownPct)}  ` +
-        `${pct(w.benchmarkGainPct)} ${dd(w.benchmarkMaxDrawdownPct)}   ${w.passesDrawdownCriterion ? 'OUI' : 'non'}`
+        `${pct(w.benchmarkGainPct)} ${dd(w.benchmarkMaxDrawdownPct)}`
     );
   }
 
@@ -33,9 +33,15 @@ export function formatRollingReport(summary: RollingSummary, benchmarkAsset: str
   lines.push(
     `Pire baisse maximale          ${dd(summary.coreMaxDrawdownPct.worst)}   ${dd(summary.benchmarkMaxDrawdownPct.worst)}`
   );
+  lines.push(
+    `Fenêtres en perte             ${`${summary.coreLossPct.toFixed(0)} %`.padStart(8)}   ${`${summary.benchmarkLossPct.toFixed(0)} %`.padStart(8)}`
+  );
   lines.push('');
-  lines.push(`Fenêtres où le cœur passe le critère de baisse maximale : ${summary.passRatePct.toFixed(0)} %`);
   lines.push(`Fenêtres où le cœur gagne plus que ${benchmarkAsset} seul : ${summary.beatsBenchmarkPct.toFixed(0)} %`);
+  lines.push(
+    `Critère de passage (docs/agents.md) — baisse maximale médiane plus faible que ${benchmarkAsset} seul, ` +
+      `et pas plus de fenêtres en perte : ${summary.passesCriterion ? 'OUI' : 'NON'}.`
+  );
   lines.push('');
   lines.push(
     'Les fenêtres se chevauchent : ce ne sont pas des essais indépendants, et tout l\'historique ' +
@@ -90,10 +96,9 @@ export function formatCoreReport(
   }
 
   lines.push('');
-  const passes = core.maxDrawdownPct <= benchmark.maxDrawdownPct;
   lines.push(
-    `Critère de passage (docs/agents.md) — baisse maximale du cœur inférieure ou égale à celle de ` +
-      `${benchmarkAsset} seul : ${passes ? 'OUI' : 'NON'}.`
+    'Une seule période ne suffit pas pour juger le cœur : le critère de passage se lit avec ' +
+      '`npm run backtest:core -- --rolling`.'
   );
   lines.push('Résultat passé, simulé : il ne prédit pas l\'avenir et n\'est pas un conseil financier.');
   return lines.join('\n');
