@@ -67,6 +67,20 @@
     "maxExposurePct": 50,
     "stopFile": "STOP"
   },
+  "grille": {
+    "chains": ["Ethereum", "Solana", "Binance"],
+    "minTvlUsd": 10000000,
+    "minRevenue1yUsd": 1000000,
+    "minVolume24hUsd": 1000000,
+    "minAgeDays": 365,
+    "hackLookbackDays": 365,
+    "minCirculatingPct": 50,
+    "picks": 4,
+    "pctEach": 5,
+    "historyShortlist": 12,
+    "excludedGeckoIds": ["bitcoin", "ethereum", "solana", "binancecoin", "tether", "usd-coin", "dai", "usds", "ethena-usde", "first-digital-usd", "paypal-usd", "wrapped-bitcoin", "weth", "staked-ether", "wrapped-steth"],
+    "excludedCategories": ["CEX", "Chain"]
+  },
   "core": {
     "capitalUsd": 480,
     "targets": { "BTC": 50, "ETH": 15, "SOL": 10, "BNB": 5 },

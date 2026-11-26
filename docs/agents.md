@@ -50,6 +50,34 @@ Le système gère deux budgets séparés :
 - **Conditions d'entrée d'un projet hors des quatre majeurs :** audit de sécurité publié, liquidité suffisante, au moins 1 an d'existence, pas de gros déblocage de jetons dans les 6 mois.
 - **Référence à battre :** BTC seul, acheté avec le même calendrier d'achats (104 semaines) et les mêmes frais.
 
+### Grille de notation des projets (`npm run grille`)
+
+Elle choisit les projets qui reçoivent la part « projets » du cœur (4 projets à 5 % ; tant qu'il en manque, l'argent reste en USDC). Données publiques et gratuites : DefiLlama (TVL, frais, revenus, audits, piratages) et CoinGecko (marché, offre en circulation). Code : `src/grille/`, réglages : section `grille` de `config/config.json`.
+
+**Examinés :** les projets présents sur Ethereum, Solana ou BNB Chain, liés à un jeton coté sur CoinGecko, avec au moins 10 M$ de TVL ou 1 M$ de revenus annuels. Sont exclus les quatre majeurs, les stablecoins, les jetons « enveloppés » et les plateformes centralisées.
+
+**Règles d'entrée** (toutes obligatoires) :
+
+| Règle | Comment elle est vérifiée |
+|---|---|
+| Au moins 1 an de cotation | plus ancienne date connue entre le plus haut et le plus bas historiques (CoinGecko) : le jeton est coté depuis au moins cette date |
+| Audit de sécurité | audit déclaré sur DefiLlama (niveau 2 ou plus) ; liens à vérifier par le Chercheur |
+| Liquidité | volume sur 24 h d'au moins 1 M$ |
+| Pas de piratage récent | aucun piratage recensé par DefiLlama dans les 12 derniers mois |
+| Pas de gros déblocage à venir | au moins 50 % de l'offre maximale (ou totale) déjà en circulation. C'est un indicateur : le calendrier exact des déblocages sur 6 mois reste à vérifier par le Chercheur |
+
+**Note sur 100**, calculée en TypeScript :
+
+| Critère | Points | Échelle |
+|---|---|---|
+| Revenus | 30 | capitalisation divisée par les revenus annuels : 5 ou moins → 30, 200 ou plus → 0 |
+| Adoption | 25 | taille de la TVL (10 : 10 M$ → 0, 10 Md$ → 10) et son évolution sur 6 mois (15 : −50 % → 0, +50 % → 15). L'évolution n'est chargée que pour les 12 premiers ; ailleurs elle compte neutre (7,5) |
+| Tokenomics | 20 | part de l'offre en circulation : 40 % → 0, 100 % → 20 |
+| Marché | 15 | volume sur 24 h (7,5 : 1 M$ → 0, 100 M$ → 7,5) et ancienneté de cotation (7,5 : 1 an → 0, 5 ans → 7,5) |
+| Sécurité | 10 | audit déclaré (5) et aucun piratage dans l'historique (5 ; 2 si les piratages ont plus d'un an) |
+
+Chaque exécution enregistre le détail dans `data/grille/AAAA-MM-JJ.json`. **La grille ne peut pas être testée honnêtement sur le passé** (données de fond anciennes indisponibles date par date, et biais du survivant) : elle sera jugée en simulation, chaque trimestre, en comparant les projets retenus au fait de garder ces 20 % en USDC ou de les mettre en BTC.
+
 ### Pourquoi cette répartition
 
 Testée sur les prix réels de Binance, sur toutes les fenêtres de 3 ans possibles, en novembre 2026 :

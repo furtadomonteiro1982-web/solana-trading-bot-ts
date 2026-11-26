@@ -9,7 +9,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "backtest:core": "tsx src/coreBacktestRunner.ts"
+    "backtest:core": "tsx src/coreBacktestRunner.ts",
+    "grille": "tsx src/grilleRunner.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

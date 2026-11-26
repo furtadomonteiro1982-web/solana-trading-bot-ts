@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import { z } from 'zod';
 
+const DEFAULT_EXCLUDED_GECKO_IDS = [
+  'bitcoin', 'ethereum', 'solana', 'binancecoin',
+  'tether', 'usd-coin', 'dai', 'usds', 'ethena-usde', 'first-digital-usd', 'paypal-usd',
+  'wrapped-bitcoin', 'weth', 'staked-ether', 'wrapped-steth',
+];
+
 export const BotConfigSchema = z.object({
   scanIntervalSeconds: z.number().positive(),
   network: z.string().min(1),
@@ -118,6 +124,38 @@ export const BotConfigSchema = z.object({
         minCreatorInitialBuyPct: 1,
         maxCreatorInitialBuyPct: 10,
       },
+    }),
+  // Grille de notation des projets du cœur (voir src/grille/scoring.ts et docs/agents.md).
+  grille: z
+    .object({
+      // Réseaux tels que DefiLlama les nomme : « Binance » désigne BNB Chain.
+      chains: z.array(z.string()).default(['Ethereum', 'Solana', 'Binance']),
+      minTvlUsd: z.number().nonnegative().default(10_000_000),
+      minRevenue1yUsd: z.number().nonnegative().default(1_000_000),
+      minVolume24hUsd: z.number().nonnegative().default(1_000_000),
+      minAgeDays: z.number().nonnegative().default(365),
+      hackLookbackDays: z.number().nonnegative().default(365),
+      minCirculatingPct: z.number().min(0).max(100).default(50),
+      picks: z.number().int().nonnegative().default(4),
+      pctEach: z.number().nonnegative().default(5),
+      historyShortlist: z.number().int().nonnegative().default(12),
+      // Les quatre majeurs (déjà dans le cœur), les stablecoins et les jetons « enveloppés ».
+      excludedGeckoIds: z.array(z.string()).default(DEFAULT_EXCLUDED_GECKO_IDS),
+      excludedCategories: z.array(z.string()).default(['CEX', 'Chain']),
+    })
+    .default({
+      chains: ['Ethereum', 'Solana', 'Binance'],
+      minTvlUsd: 10_000_000,
+      minRevenue1yUsd: 1_000_000,
+      minVolume24hUsd: 1_000_000,
+      minAgeDays: 365,
+      hackLookbackDays: 365,
+      minCirculatingPct: 50,
+      picks: 4,
+      pctEach: 5,
+      historyShortlist: 12,
+      excludedGeckoIds: DEFAULT_EXCLUDED_GECKO_IDS,
+      excludedCategories: ['CEX', 'Chain'],
     }),
   // Garde-fous du satellite (voir docs/agents.md et src/satellite/guards.ts), appliqués à chaque
   // stratégie de trading avec son propre capital simulé : hourly (risk.simulatedCapitalUsd) et

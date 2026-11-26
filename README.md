@@ -142,6 +142,19 @@ Les réglages sont dans la section `core` de `config/config.json` : capital, par
 d'achats, seuil de rééquilibrage, frais et slippage simulés (0,1 % chacun par défaut). Aucun ordre
 n'est passé et aucune clé n'est utilisée.
 
+## Noter les projets candidats du cœur
+
+```bash
+npm run grille
+```
+
+Télécharge les données publiques de DefiLlama et CoinGecko (gratuites, sans clé ; compter quelques
+minutes à cause des limites de débit de CoinGecko), applique les règles d'entrée, note chaque
+projet sur 100 et retient les 4 meilleurs pour la part « projets » du cœur. Le classement s'affiche
+et le détail est enregistré dans `data/grille/AAAA-MM-JJ.json`. Critères et échelles : voir la
+section « Grille de notation des projets » de [docs/agents.md](./docs/agents.md). Aucun achat n'est
+fait : c'est une liste à examiner, pas un conseil financier.
+
 ## Arrêt d'urgence du satellite
 
 Créez un fichier `STOP` à la racine du projet (`touch STOP`) : le bot n'ouvre plus aucune position,
