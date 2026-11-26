@@ -4,7 +4,8 @@ import { loadConfig } from './config.js';
 import { fetchDailyCloses } from './core/binanceClient.js';
 import { runCoreBacktest, runSingleAssetBenchmark } from './core/dcaBacktest.js';
 import { alignSeries, lastDays, parseDailyCsv, toDailyCsv, type DailyClose } from './core/priceSeries.js';
-import { formatCoreReport } from './core/report.js';
+import { formatCoreReport, formatRollingReport } from './core/report.js';
+import { runRollingWindows } from './core/rollingWindows.js';
 
 // Rejoue le cœur long terme sur des prix passés. Simulation pure : aucun ordre, aucune clé.
 //
@@ -12,12 +13,15 @@ import { formatCoreReport } from './core/report.js';
 //   npm run backtest:core -- --years 2
 //   npm run backtest:core -- --save data/prix  télécharge et garde les prix en CSV
 //   npm run backtest:core -- --csv data/prix   rejoue hors ligne depuis BTC.csv, ETH.csv…
+//   npm run backtest:core -- --rolling         fenêtres de 3 ans glissantes sur tout l'historique
+//   npm run backtest:core -- --rolling --step-days 91 --history-years 8
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const config = loadConfig('config/config.json').core;
   const assets = [...new Set([...Object.keys(config.targets), config.benchmarkAsset])];
   const windowDays = Math.round(args.years * 365);
+  const downloadDays = args.rolling ? Math.round(args.historyYears * 365) : windowDays;
 
   const series: Record<string, DailyClose[]> = {};
   for (const asset of assets) {
@@ -26,7 +30,7 @@ async function main() {
       series[asset] = parseDailyCsv(fs.readFileSync(file, 'utf-8'), file);
     } else {
       console.log(`Téléchargement des prix de ${asset}…`);
-      series[asset] = await fetchDailyCloses(asset, windowDays, { baseUrl: config.binanceBaseUrl });
+      series[asset] = await fetchDailyCloses(asset, downloadDays, { baseUrl: config.binanceBaseUrl });
       if (args.saveDir) {
         fs.mkdirSync(args.saveDir, { recursive: true });
         fs.writeFileSync(path.join(args.saveDir, `${asset}.csv`), toDailyCsv(series[asset]!));
@@ -34,7 +38,7 @@ async function main() {
     }
   }
 
-  const days = lastDays(alignSeries(series), windowDays);
+  const allDays = alignSeries(series);
   const backtestConfig = {
     capitalUsd: config.capitalUsd,
     targets: config.targets,
@@ -43,19 +47,47 @@ async function main() {
     feePct: config.feePct,
     slippagePct: config.slippagePct,
   };
+  if (args.rolling) {
+    const summary = runRollingWindows(allDays, windowDays, args.stepDays, backtestConfig, config.benchmarkAsset);
+    console.log(formatRollingReport(summary, config.benchmarkAsset, args.years));
+    return;
+  }
+
+  const days = lastDays(allDays, windowDays);
   const core = runCoreBacktest(days, backtestConfig);
   const benchmark = runSingleAssetBenchmark(days, config.benchmarkAsset, backtestConfig);
   console.log(formatCoreReport(core, benchmark, config.benchmarkAsset, backtestConfig));
 }
 
-function parseArgs(argv: string[]): { years: number; csvDir?: string; saveDir?: string } {
-  const result: { years: number; csvDir?: string; saveDir?: string } = { years: 3 };
+interface RunnerArgs {
+  years: number;
+  rolling: boolean;
+  stepDays: number;
+  historyYears: number;
+  csvDir?: string;
+  saveDir?: string;
+}
+
+function parseArgs(argv: string[]): RunnerArgs {
+  const result: RunnerArgs = { years: 3, rolling: false, stepDays: 30, historyYears: 10 };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     const value = argv[i + 1];
     if (flag === '--years' && value) {
       result.years = Number(value);
       if (!(result.years > 0)) throw new Error(`--years attend un nombre positif, reçu « ${value} ».`);
+      i++;
+    } else if (flag === '--rolling') {
+      result.rolling = true;
+    } else if (flag === '--step-days' && value) {
+      result.stepDays = Number(value);
+      if (!Number.isInteger(result.stepDays) || result.stepDays <= 0) {
+        throw new Error(`--step-days attend un entier positif, reçu « ${value} ».`);
+      }
+      i++;
+    } else if (flag === '--history-years' && value) {
+      result.historyYears = Number(value);
+      if (!(result.historyYears > 0)) throw new Error(`--history-years attend un nombre positif, reçu « ${value} ».`);
       i++;
     } else if (flag === '--csv' && value) {
       result.csvDir = value;
@@ -64,7 +96,7 @@ function parseArgs(argv: string[]): { years: number; csvDir?: string; saveDir?: 
       result.saveDir = value;
       i++;
     } else {
-      throw new Error(`Option inconnue ou incomplète : « ${flag} ». Options : --years N, --csv DOSSIER, --save DOSSIER.`);
+      throw new Error(`Option inconnue ou incomplète : « ${flag} ». Options : --years N, --rolling, --step-days N, --history-years N, --csv DOSSIER, --save DOSSIER.`);
     }
   }
   return result;

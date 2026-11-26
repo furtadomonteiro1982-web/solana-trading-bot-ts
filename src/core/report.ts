@@ -1,4 +1,49 @@
+import type { RollingSummary } from './rollingWindows.js';
 import type { CoreBacktestConfig, CoreBacktestResult } from './types.js';
+
+/** Rapport des fenêtres glissantes : une ligne par départ, puis la synthèse. */
+export function formatRollingReport(summary: RollingSummary, benchmarkAsset: string, windowYears: number): string {
+  const pct = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)} %`.padStart(9);
+  const dd = (value: number) => `-${value.toFixed(1)} %`.padStart(8);
+  const first = summary.windows[0]!;
+  const last = summary.windows[summary.windows.length - 1]!;
+  const lines: string[] = [];
+
+  lines.push(
+    `Cœur long terme — ${summary.windows.length} fenêtres de ${windowYears} an(s), ` +
+      `départs du ${first.startDate} au ${last.startDate}`
+  );
+  lines.push('');
+  lines.push(`Départ       Fin           Cœur gain  baisse   ${benchmarkAsset} gain  baisse   Critère`);
+  for (const w of summary.windows) {
+    lines.push(
+      `${w.startDate}   ${w.endDate}   ${pct(w.coreGainPct)} ${dd(w.coreMaxDrawdownPct)}  ` +
+        `${pct(w.benchmarkGainPct)} ${dd(w.benchmarkMaxDrawdownPct)}   ${w.passesDrawdownCriterion ? 'OUI' : 'non'}`
+    );
+  }
+
+  lines.push('');
+  lines.push('Synthèse                          Cœur      ' + `${benchmarkAsset} seul`);
+  lines.push(`Gain médian                  ${pct(summary.coreGainPct.median)}  ${pct(summary.benchmarkGainPct.median)}`);
+  lines.push(`Pire gain                    ${pct(summary.coreGainPct.min)}  ${pct(summary.benchmarkGainPct.min)}`);
+  lines.push(`Meilleur gain                ${pct(summary.coreGainPct.max)}  ${pct(summary.benchmarkGainPct.max)}`);
+  lines.push(
+    `Baisse maximale médiane       ${dd(summary.coreMaxDrawdownPct.median)}   ${dd(summary.benchmarkMaxDrawdownPct.median)}`
+  );
+  lines.push(
+    `Pire baisse maximale          ${dd(summary.coreMaxDrawdownPct.worst)}   ${dd(summary.benchmarkMaxDrawdownPct.worst)}`
+  );
+  lines.push('');
+  lines.push(`Fenêtres où le cœur passe le critère de baisse maximale : ${summary.passRatePct.toFixed(0)} %`);
+  lines.push(`Fenêtres où le cœur gagne plus que ${benchmarkAsset} seul : ${summary.beatsBenchmarkPct.toFixed(0)} %`);
+  lines.push('');
+  lines.push(
+    'Les fenêtres se chevauchent : ce ne sont pas des essais indépendants, et tout l\'historique ' +
+      'commun reste court pour un placement de plusieurs années.'
+  );
+  lines.push('Résultats passés, simulés : ils ne prédisent pas l\'avenir et ne sont pas un conseil financier.');
+  return lines.join('\n');
+}
 
 /** Rapport lisible du cœur comparé à la référence (un seul actif, mêmes achats). */
 export function formatCoreReport(

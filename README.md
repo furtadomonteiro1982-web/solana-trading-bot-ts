@@ -127,7 +127,13 @@ npm run backtest:core                       # 3 ans de prix journaliers (Binance
 npm run backtest:core -- --years 2          # autre durée
 npm run backtest:core -- --save data/prix   # garde aussi les prix téléchargés en CSV
 npm run backtest:core -- --csv data/prix    # rejoue hors ligne depuis BTC.csv, ETH.csv, SOL.csv, BNB.csv
+npm run backtest:core -- --rolling          # fenêtres de 3 ans glissantes sur tout l'historique commun
+npm run backtest:core -- --rolling --step-days 91   # un départ par trimestre au lieu d'un par mois
 ```
+
+Avec `--rolling`, le cœur et BTC seul sont rejoués sur une fenêtre de 3 ans (`--years`) qui démarre
+tous les 30 jours (`--step-days`), sur jusqu'à 10 ans de prix (`--history-years`). L'historique commun
+est limité par l'actif le plus récent : SOL n'est coté sur Binance que depuis août 2020.
 
 Les réglages sont dans la section `core` de `config/config.json` : capital, parts cibles, nombre
 d'achats, seuil de rééquilibrage, frais et slippage simulés (0,1 % chacun par défaut). Aucun ordre
